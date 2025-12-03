@@ -1,0 +1,1221 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+// 移除 Lucide Icons, 改用 Emoji
+
+// --- 證物與辯論數據 (EVIDENCE_DB 保持不變) ---
+
+// 證物資料庫
+const EVIDENCE_DB = {
+  coffee_seal: {
+    id: 'coffee_seal',
+    name: '粗糙的封口 (毒咖啡)',
+    desc: '咖啡包的封口呈現鋸齒狀且長短不一，明顯是被人拆開後用簡易封口機重新封裝的痕跡。這類新興毒品常偽裝成零食或飲品。',
+    icon: '☕',
+    quiz: [
+      {
+        question: "下列哪一項『不是』新興毒品的常見特徵？",
+        options: ["包裝常偽裝成咖啡或奶茶等飲品", "多為混和性毒品，成分複雜", "常被誤認為潮流零食或派對用藥", "它們都是純天然的植物成分"],
+        correctIndex: 3
+      },
+      {
+        question: "青少年吸食毒品後，最主要的傷害是？",
+        options: ["導致輕微腹瀉", "引起長期便秘", "嚴重損害大腦中樞神經，影響發育與記憶", "造成皮膚乾燥脫皮"],
+        correctIndex: 2
+      }
+    ]
+  },
+  vape_shake: {
+    id: 'vape_shake',
+    name: '異常顫抖的手 (喪屍煙彈)',
+    desc: '吸食電子煙的學長手部出現無法控制的劇烈顫抖。這是受到「依托咪酯（喪屍煙彈）」影響的中毒症狀。依托咪酯在醫學上是麻醉劑。',
+    icon: '🧟',
+    quiz: [
+      {
+        question: "「依托咪酯」在醫學上最主要的用途是？",
+        options: ["止痛劑", "抗生素", "麻醉/鎮靜劑", "降血壓藥"],
+        correctIndex: 2
+      },
+      {
+        question: "濫用依托咪酯（喪屍煙彈）最典型的外觀症狀是？",
+        options: ["皮膚大面積變色", "無法控制的肌肉僵直或劇烈顫抖",
+                "視力瞬間完全喪失", "體重在極短時間內急劇增加"],
+        correctIndex: 1
+      }
+    ]
+  },
+  candy_label: {
+    id: 'candy_label',
+    name: 'THC 標示 (大麻軟糖)',
+    desc: '軟糖包裝背面角落印有極小的「THC」圖案。THC是四氫大麻酚的縮寫，是大麻中最主要的精神活性和成癮成分，屬於二級毒品。',
+    icon: '🍬',
+    quiz: [
+      {
+        question: "大麻 (Cannabis) 在臺灣毒品危害防制條例中，主要被歸類為第幾級毒品？",
+        options: ["第一級毒品", "第二級毒品",
+                "第三級毒品", "第四級毒品"],
+        correctIndex: 1
+      },
+      {
+        question: "大麻中，會讓人產生興奮、幻覺等精神作用的成分是？",
+        options: ["CBD (大麻二酚)", "CBN", "THC (四氫大麻酚)",
+                "大麻素油"],
+        correctIndex: 2
+      }
+    ]
+  },
+  rainbow_filter: {
+    id: 'rainbow_filter',
+    name: '彩色濾嘴 (彩虹菸)',
+    desc: '香菸濾嘴是五顏六色的，且燃燒時有特殊的塑膠甜味。這是「彩虹菸」的特徵，常混合K他命等三級毒品。',
+    icon: '🌈',
+    quiz: [
+      {
+        question: "彩虹菸中常摻雜K他命，K他命在臺灣屬於第幾級毒品？",
+        options: ["第一級毒品", "第二級毒品", "第三級毒品", "第四級毒品"],
+        correctIndex: 2
+      },
+      {
+        question: "長期濫用K他命 (K他命) 會對人體造成最嚴重的損害是？",
+        options: ["心臟衰竭", "膀胱功能嚴重受損 (K他命膀胱)", "肝臟快速萎縮", "胃出血"],
+        correctIndex: 1
+      }
+    ]
+  }
+};
+
+// --- 遊戲初始狀態 ---
+
+const INITIAL_STATS = {
+  health: 100,    // 信心/健康
+  sanity: 100,    // 理智 (觀察錯誤會扣除)
+};
+
+// --- 遊戲場景與選項 (已移除 quiz_fail_scene) ---
+
+const SCENES = {
+  start: {
+    id: 'start',
+    title: '序章：KTV 的邀約',
+    text: "你是國小六年級學生。週五晚上，同學「阿豪」堅持要你參加一個「有很多國中學長姐」的慶生會。你勉強答應了。",
+    bg: "bg-slate-900",
+    options: [
+      { text: "推開包廂的門", nextScene: 'investigation_hub' }
+    ]
+  },
+  investigation_hub: {
+    id: 'investigation_hub',
+    title: '調查環節：蒐證',
+    text: "包廂內烏煙瘴氣。為了保護自己並揭穿他們的謊言，你需要仔細觀察現場。請選擇一個可疑處進行調查。\n\n(注意：亂觀察或做出危險嘗試會扣除理智值，答錯反毒知識題也會扣理智)",
+    bg: "bg-indigo-950",
+    type: 'hub', // 使用 hub 類型來篩選選項
+    options: [
+      // *** 根據使用者要求更新選項措辭為觀察對象 ***
+      // 1. 臉色很差的學長 (對應 VAPE/依托咪酯)
+      { text: "臉色很差的學長", nextScene: 'sub_vape', condition: '!vape_shake' },
+      // 2. 包裝鮮豔的軟糖 (對應 CANDY/大麻軟糖)
+      { text: "包裝鮮豔的軟糖", nextScene: 'sub_candy', condition: '!candy_label' },
+      // 3. 桌面上的飲料 (對應 COFFEE/毒咖啡)
+      { text: "桌面上的飲料", nextScene: 'sub_coffee', condition: '!coffee_seal' },
+      // 4. 角落散落的菸蒂 (對應 CIGARETTE/彩虹菸)
+      { text: "角落散落的菸蒂", nextScene: 'sub_cigarette', condition: '!rainbow_filter' },
+      
+      // 攤牌選項 (style: 'action' 不會被隱藏)
+      { text: "證據收集完畢，準備攤牌！", nextScene: 'pre_debate', style: 'action' }
+    ]
+  },
+
+  // --- 子調查場景 (保持不變) ---
+  sub_coffee: {
+    id: 'sub_coffee',
+    title: '特寫觀察：飲品包',
+    text: "你拿起了咖啡包。這看起來像是一個知名的動漫聯名款咖啡。你要檢查哪裡？",
+    bg: "bg-slate-800",
+    options: [
+      { text: "檢查包裝正面的圖案", nextScene: 'sub_coffee_logo' },
+      { text: "檢查包裝的「封口處」", nextScene: 'sub_coffee_seal' },
+      { text: "直接打開來喝喝看", nextScene: 'sub_coffee_drink', effect: { health: -30, sanity: -20 } },
+      { text: "放回桌上 (返回)", nextScene: 'investigation_hub' }
+    ]
+  },
+  sub_coffee_logo: {
+    id: 'sub_coffee_logo',
+    title: '觀察結果',
+    text: "圖案印刷得很精美，看起來跟超商賣的一模一樣。這似乎不是判斷真偽的關鍵。",
+    bg: "bg-slate-800",
+    options: [{ text: "再看看別的地方", nextScene: 'sub_coffee' }]
+  },
+  sub_coffee_seal: {
+    id: 'sub_coffee_seal',
+    title: '發現線索！',
+    text: "你摸了摸封口。不對勁！原廠的封口應該是平滑的，但這個封口呈現「鋸齒狀」，而且長短不一，還有重複加熱的痕跡。這是被重新封裝過的！\n\n(請回答反毒知識題以確認證據並收錄)",
+    bg: "bg-yellow-900",
+    startQuizFor: "coffee_seal",
+    options: [{ text: "開始知識問答", nextScene: 'investigation_hub' }]
+  },
+  sub_coffee_drink: {
+    id: 'sub_coffee_drink',
+    title: '危險行為！',
+    text: "你竟然想試喝？還好你只沾了一點點點粉末，舌頭立刻感到一陣麻痺和噁心。你的健康和理智受到影響了！",
+    bg: "bg-red-900",
+    options: [{ text: "咳咳...太危險了...", nextScene: 'investigation_hub' }]
+  },
+  sub_vape: {
+    id: 'sub_vape',
+    title: '特寫觀察：吸食者與工具',
+    text: "學長正陶醉地吸著電子煙。你要觀察什麼部位？",
+    bg: "bg-slate-800",
+    options: [
+      { text: "觀察吸食工具的主機品牌", nextScene: 'sub_vape_device' },
+      { text: "觀察學長拿工具的「手」", nextScene: 'sub_vape_hand' },
+      { text: "返回", nextScene: 'investigation_hub' }
+    ]
+  },
+  sub_vape_device: {
+    id: 'sub_vape_device',
+    title: '觀察結果',
+    text: "這只是一個普通的通用型電子煙主機，外觀上看不出煙彈裡面裝了什麼。",
+    bg: "bg-slate-800",
+    options: [{ text: "再看看別的地方", nextScene: 'sub_vape' }]
+  },
+  sub_vape_hand: {
+    id: 'sub_vape_hand',
+    title: '發現線索！',
+    text: "你發現學長的手指正在以一種極不自然的頻率「劇烈顫抖」，連工具都快拿不穩了。這是施用「依托咪酯」後的典型神經症狀！\n\n(請回答反毒知識題以確認證據並收錄)",
+    bg: "bg-yellow-900",
+    startQuizFor: "vape_shake",
+    options: [{ text: "開始知識問答", nextScene: 'investigation_hub' }]
+  },
+  sub_cigarette: {
+    id: 'sub_cigarette',
+    title: '特寫觀察：菸蒂',
+    text: "煙灰缸裡放著幾根抽剩的菸蒂。你要檢查哪裡？",
+    bg: "bg-slate-800",
+    options: [
+      { text: "聞聞看燃燒的味道", nextScene: 'sub_cigarette_smell' },
+      { text: "觀察菸的「濾嘴」部分", nextScene: 'sub_cigarette_filter' },
+      { text: "返回", nextScene: 'investigation_hub' }
+    ]
+  },
+  sub_cigarette_smell: {
+    id: 'sub_cigarette_smell',
+    title: '觀察結果',
+    text: "空氣中瀰漫著一股甜膩的塑膠味。這味道很怪，但光憑味道很難當作鐵證跟對方辯論。",
+    bg: "bg-slate-800",
+    options: [{ text: "需要更具體的視覺證據", nextScene: 'sub_cigarette' }]
+  },
+  sub_cigarette_filter: {
+    id: 'sub_cigarette_filter',
+    title: '發現線索！',
+    text: "你仔細看濾嘴，發現它是「五顏六色」的。這是典型的「彩虹菸」，專門用來吸引年輕人，裡面通常混有K他命。\n\n(請回答反毒知識題以確認證據並收錄)",
+    bg: "bg-yellow-900",
+    startQuizFor: "rainbow_filter",
+    options: [{ text: "開始知識問答", nextScene: 'investigation_hub' }]
+  },
+  sub_candy: {
+    id: 'sub_candy',
+    title: '特寫觀察：口服製品',
+    text: "這包軟糖包裝色彩鮮豔，全是英文字。看起來很像普通的進口零食。",
+    bg: "bg-slate-800",
+    options: [
+      { text: "拿一顆起來吃", nextScene: 'sub_candy_eat', effect: { sanity: -50, health: -20 } },
+      { text: "仔細閱讀「包裝背面角落」", nextScene: 'sub_candy_label' },
+      { text: "返回", nextScene: 'investigation_hub' }
+    ]
+  },
+  sub_candy_eat: {
+    id: 'sub_candy_eat',
+    title: '危險行為！',
+    text: "你吃了一顆。雖然甜甜的，但過了一會兒你開始覺得頭暈目眩，時間感變慢了...你中毒了！",
+    bg: "bg-red-900",
+    options: [{ text: "努力保持清醒...", nextScene: 'investigation_hub' }]
+  },
+  sub_candy_label: {
+    id: 'sub_candy_label',
+    title: '發現線索！',
+    text: "你在密密麻麻的成分表角落，發現了一個不起眼的警告圖示：『THC』(四氫大麻酚)。這是二級毒品大麻的成分！\n\n(請回答反毒知識題以確認證據並收錄)",
+    bg: "bg-yellow-900",
+    startQuizFor: "candy_label",
+    options: [{ text: "開始知識問答", nextScene: 'investigation_hub' }]
+  },
+
+  // --- 後續場景 (保持不變) ---
+  pre_debate: {
+    id: 'pre_debate',
+    title: '正面對決',
+    text: "你站起來大聲說：「我要回家了，這裡的東西都有問題！」\n\n藥頭大哥擋在門口：「證據在哪裡？拿不出來就別想走。」\n\n(教學：對手會說出一連串證詞。請仔細閱讀，對可疑的語句進行「追問」以逼出破綻，最後在關鍵證詞上「出示」證物！)",
+    bg: "bg-red-900",
+    options: [
+      // 修正: 移除 nextScene: 'debate_start'，因為 'action: 'start_debate'' 會直接處理狀態切換
+      { text: "開始辯論！(消耗信心值)", action: 'start_debate' } 
+    ]
+  },
+  good_end: {
+    id: 'good_end',
+    title: '結局：逆轉裁判',
+    text: "「嗚...！」面對你指出的每一個破綻，他們無從抵賴。你的邏輯像利刃一樣切開了他們的謊言網。\n\n這時警察衝了進來。原來你拖延的時間剛好讓巡邏隊察覺異狀。你憑藉著冷靜的觀察與邏輯，成功保護了自己！",
+    type: 'win',
+    bg: "bg-blue-800"
+  },
+  bad_end_debate: {
+    id: 'bad_end_debate',
+    title: '結局：辯論失敗',
+    text: "你雖然覺得不對勁，但無法具體指出哪裡有問題。「看吧，小朋友就是愛亂講話。」\n\n你被他們的氣勢壓倒，最後在半強迫下接觸了那些東西...",
+    type: 'lose',
+    bg: "bg-black"
+  },
+  bad_end_run: {
+    id: 'bad_end_run',
+    title: '結局：身心崩潰',
+    text: "你的健康或理智值已降到危險水平。你失去了判斷力，無法有效保護自己，最終導致了不可挽回的後果。", // 統一處理所有健康/理智歸零的失敗
+    type: 'neutral',
+    bg: "bg-gray-800"
+  },
+  // 刪除 quiz_fail_scene
+};
+
+
+// --- 元件：證物卡 (可點擊) ---
+const EvidenceCard = ({ itemId, onClick }) => {
+  const item = EVIDENCE_DB[itemId];
+  return (
+    <button
+        onClick={() => onClick(itemId)}
+        className="pixel-button-small bg-slate-800 p-3 flex items-center gap-3 transition-transform hover:scale-[1.02] hover:bg-slate-700 text-left w-full"
+    >
+      <div className="text-2xl">{item.icon}</div>
+      <div>
+        <div className="font-bold text-yellow-400 text-sm flex items-center gap-2">{item.name} <span className='text-yellow-500'>👁️</span></div>
+        <div className="text-xs text-gray-300 hidden md:block">{item.desc.substring(0, 20)}... (點擊查看詳情)</div>
+      </div>
+    </button>
+  );
+};
+
+
+// --- 元件：模態視窗基底 ---
+const ModalBase = ({ title, children, onClose }) => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 animate-fade-in">
+        <div className="bg-slate-900 w-full max-w-lg pixel-box border-4 border-blue-500 shadow-pixel-blue p-6 relative animate-zoom-in">
+            <h3 className="text-2xl font-black text-blue-400 mb-4 border-b border-slate-700 pb-2 flex items-center gap-2">
+                {title}
+            </h3>
+            {children}
+            <button
+                onClick={onClose}
+                className="absolute top-4 right-4 text-gray-400 hover:text-white transition"
+            >
+                <span className="text-2xl">❌</span>
+            </button>
+        </div>
+    </div>
+);
+
+// --- 元件：知識問答模態視窗 ---
+const QuizModal = ({ itemId, onQuizComplete, stats, setStats }) => {
+    const item = EVIDENCE_DB[itemId];
+    const quizData = item.quiz;
+
+    const [currentQuestion, setCurrentQuestion] = useState(0);
+    const [selectedOption, setSelectedOption] = useState(null);
+    const [isCorrect, setIsCorrect] = useState(null); // null, true, false
+    const [feedbackMessage, setFeedbackMessage] = useState('');
+
+    // 處理選項選擇
+    const handleSelectOption = (index) => {
+        if (isCorrect !== null) return; // 已經回答過了
+        setSelectedOption(index);
+    };
+
+    // 處理提交答案
+    const handleSubmitAnswer = () => {
+        if (selectedOption === null) {
+            setFeedbackMessage("請先選擇一個答案！");
+            return;
+        }
+
+        const currentQuiz = quizData[currentQuestion];
+        const correct = selectedOption === currentQuiz.correctIndex;
+        setIsCorrect(correct);
+
+        if (correct) {
+            setFeedbackMessage("✅ 恭喜你！答案正確。");
+            // 答對，繼續下一題或完成
+            if (currentQuestion < quizData.length - 1) {
+                setTimeout(() => {
+                    setCurrentQuestion(prev => prev + 1);
+                    setSelectedOption(null);
+                    setIsCorrect(null);
+                    setFeedbackMessage('');
+                }, 1000);
+            } else {
+                // 兩題都答對
+                setTimeout(() => onQuizComplete(true, itemId), 1500);
+            }
+        } else {
+            // 答錯，懲罰並結束 (僅關閉 Modal, 回到調查中心)
+            setFeedbackMessage(`❌ 答錯了！正確答案是：${currentQuiz.options[currentQuiz.correctIndex]} (理智 -15)`);
+            setStats(prev => ({
+                ...prev,
+                sanity: Math.max(0, prev.sanity - 15) // 答錯扣理智
+            }));
+
+            // 無論如何，答錯當前回合結束，判定失敗
+            setTimeout(() => onQuizComplete(false, itemId), 3000);
+        }
+    };
+
+    const currentQuiz = quizData[currentQuestion];
+    const optionStyle = (index) => {
+        const base = "pixel-button-option p-3 text-left transition-all border ";
+        if (isCorrect === null) {
+            return base + (selectedOption === index
+                ? "bg-blue-600 border-blue-400 hover:bg-blue-700"
+                : "bg-slate-700 border-slate-600 hover:bg-slate-600");
+        } else {
+            if (index === currentQuiz.correctIndex) {
+                return base + "bg-green-700 border-green-500 text-white font-bold animate-pulse";
+            }
+            if (index === selectedOption) {
+                return base + "bg-red-700 border-red-500 text-white font-bold";
+            }
+            return base + "bg-slate-700 border-slate-600 opacity-50";
+        }
+    };
+
+    return (
+        <ModalBase title={<><span className='text-2xl'>❓</span> 知識問答 ({currentQuestion + 1}/{quizData.length})</>} onClose={() => onQuizComplete(false, itemId)}>
+            <div className="text-gray-200 mb-4 font-bold text-lg leading-relaxed">
+                {currentQuiz.question}
+            </div>
+            <div className="space-y-3 mb-6">
+                {currentQuiz.options.map((option, index) => (
+                    <button
+                        key={index}
+                        onClick={() => handleSelectOption(index)}
+                        disabled={isCorrect !== null}
+                        className={optionStyle(index) + " w-full"}
+                    >
+                        <span className="font-mono text-yellow-300 mr-2">{String.fromCharCode(65 + index)}.</span> {option}
+                    </button>
+                ))}
+            </div>
+
+            <div className="min-h-[30px] mb-4 text-center">
+                {feedbackMessage && (
+                    <p className={`font-bold ${isCorrect ? 'text-green-400' : 'text-red-400'} animate-fade-in`}>
+                        {feedbackMessage}
+                    </p>
+                )}
+            </div>
+
+            <button
+                onClick={handleSubmitAnswer}
+                disabled={selectedOption === null || isCorrect !== null}
+                className="pixel-button w-full py-3 bg-yellow-600 hover:bg-yellow-700 text-white font-bold disabled:opacity-50 transition-transform shadow-lg"
+            >
+                {isCorrect !== null ? (isCorrect ? '繼續/完成' : '確認結果') : '提交答案'}
+            </button>
+            <p className="text-sm text-gray-400 text-center mt-3">
+                * 若答錯，將扣除 15 點理智值。
+            </p>
+        </ModalBase>
+    );
+};
+
+// --- 元件：證物詳情模態視窗 ---
+const EvidenceDetailModal = ({ itemId, onClose }) => {
+    const item = EVIDENCE_DB[itemId];
+    if (!item) return null;
+
+    return (
+        <ModalBase title={<><span className='text-2xl'>💡</span> 證物詳情：{item.name}</>} onClose={onClose}>
+            <div className="flex items-start gap-4 mb-4">
+                <div className="text-5xl">{item.icon}</div>
+                <div className="text-gray-200 text-sm">
+                    {item.desc}
+                </div>
+            </div>
+
+            <p className="text-sm text-yellow-300 font-bold mt-4">反毒知識小提醒 (來源：反毒展示教育資源網)</p>
+            <ul className="list-disc list-inside text-gray-400 text-xs ml-4 space-y-1">
+                {item.quiz.map((q, index) => (
+                    <li key={index}>
+                        <span className="font-semibold text-gray-300">Q{index + 1}:</span> {q.question}
+                    </li>
+                ))}
+            </ul>
+        </ModalBase>
+    );
+};
+
+// --- 元件：辯論介面 (已修改) ---
+const DebateInterface = ({ currentRoundIndex, hp, onPresent, evidenceList, onGiveUp, setStats }) => { // 增加 setStats 接收
+  // 辯論腳本 (保持不變)
+  const DEBATE_SCRIPT = [
+    {
+      id: 1,
+      speaker: "藥頭大哥",
+      statements: [
+        { text: "喂！你說這咖啡有問題？笑死人。", type: "normal" },
+        { text: "這可是名牌咖啡包欸！你看這包裝顏色多漂亮，哪裡有假？", type: "normal" },
+        {
+          text: "這包裝跟超商賣的一模一樣，完全沒有被拆過的痕跡。", // 初始謊言
+          type: "critical",
+          pressedText: "嘖...就算封口有點皺皺的，那也是運送時壓到的！反正『封口』絕對是原廠機器壓的！",
+          weakness: "coffee_seal"
+        },
+        { text: "小孩子不懂就不要亂講話，快喝了它。", type: "normal" }
+      ],
+      counterText: "我有異議！你說封口是原廠的？請看這個！原廠封口是平整的，但這個呈現「鋸齒狀」，明顯是被拆開後重新封裝的！",
+      failText: "包裝顏色確實沒問題...這句話似乎沒有破綻。(試著切換到其他證詞，或對可疑的地方進行「追問」)"
+    },
+    {
+      id: 2,
+      speaker: "染髮學長",
+      statements: [
+        { text: "幹嘛一直盯著我看？我只是抽個水果煙放鬆一下。", type: "normal" },
+        { text: "這電子煙很普通啊，到處都買得到，就是加了點薄荷。", type: "normal" },
+        {
+          text: "而且我也沒有覺得哪裡不舒服，我很正常。",
+          type: "critical",
+          pressedText: "手抖？喔...這...這只是冷氣太強稍微發抖而已！你看，我很穩，完全沒有神經中毒！",
+          weakness: "vape_shake"
+        }
+      ],
+      counterText: "我有異議！冷氣太強？大家的眼睛是雪亮的！你的手正在「劇烈顫抖」，連煙都快拿不住了，這是依托咪酯中毒的典型症狀！",
+      failText: "他說電子煙很普通...好像也沒錯？找不到切入點。(試著尋找他身體狀況的描述進行「追問」)"
+    },
+    {
+      id: 3,
+      speaker: "阿豪 (你的朋友)",
+      statements: [
+        { text: "好啦...別吵架了。吃顆糖果消消氣總行了吧？", type: "normal" },
+        { text: "這包裝全是英文，是進口的高級軟糖喔。", type: "normal" },
+        {
+          text: "我剛剛看過成分表了，全都是糖和果汁，絕對沒問題。",
+          type: "critical",
+          pressedText: "那個小圖案？那個...那個是國外的「素食標章」啦！反正絕對不是毒品成分！",
+          weakness: "candy_label"
+        },
+        { text: "你看我吃了也沒事啊，很好吃的。", type: "normal" }
+      ],
+      counterText: "我有異議！你說這是素食標章？阿豪，你看清楚！這個角落的「THC」是四氫大麻酚的縮寫！這是毒品！",
+      failText: "普通的進口糖果...確實沒問題...(是不是有什麼細節被忽略了？試著追問關於成分的那一句)"
+    },
+     { // 第四回合：彩虹菸，需要所有證據都找到
+      id: 4,
+      speaker: "藥頭大哥",
+      statements: [
+        { text: "少在那邊給我亂扯！KTV 裡抽菸很正常，誰管你菸蒂長怎樣？", type: "normal" },
+        {
+          text: "再說，你看到桌上這包菸，濾嘴就是黃色的，跟我抽的完全一樣。",
+          type: "critical",
+          pressedText: "你說彩色？那是燈光反射啦！角落那幾根菸蒂，我保證濾嘴都是普通的白色！",
+          weakness: "rainbow_filter"
+        },
+        { text: "你已經沒有牌可打了，快點加入我們吧...", type: "normal" }
+      ],
+      counterText: "我有異議！你說濾嘴是普通的白色？請看角落的菸蒂！它明顯是「五顏六色」的，那是新型毒品『彩虹菸』的特徵！",
+      failText: "菸蒂確實看起來很普通...或許你需要更準確地指出顏色上的破綻！"
+    }
+  ];
+  const round = DEBATE_SCRIPT[currentRoundIndex];
+
+  // 狀態
+  const [stmtIndex, setStmtIndex] = useState(0);
+  const [pressedMap, setPressedMap] = useState({});
+  const [selectedEvidence, setSelectedEvidence] = useState(null);
+  const [feedback, setFeedback] = useState(null);
+  const [showObjection, setShowObjection] = useState(false);
+  const [showHoldIt, setShowHoldIt] = useState(false);
+  const [pressFeedbackText, setPressFeedbackText] = useState("");
+  const [showHint, setShowHint] = useState(false); // 新增：控制提示顯示的狀態
+
+  // 重置回合狀態
+  useEffect(() => {
+    setStmtIndex(0);
+    setPressedMap({});
+    setSelectedEvidence(null);
+    setFeedback(null);
+    setShowHint(false); // 重置提示狀態
+  }, [currentRoundIndex]);
+
+  // 切換證言
+  const handlePrev = () => setStmtIndex(prev => Math.max(0, prev - 1));
+  const handleNext = () => setStmtIndex(prev => Math.min(round.statements.length - 1, prev + 1));
+
+  // 處理追問 (Hold It!)
+  const handlePress = () => {
+    const currentStmt = round.statements[stmtIndex];
+
+    setShowHoldIt(true);
+    setTimeout(() => setShowHoldIt(false), 1000);
+
+    // 如果是關鍵句
+    if (currentStmt.type === 'critical') {
+      setPressedMap(prev => ({ ...prev, [stmtIndex]: true }));
+      setPressFeedbackText(currentStmt.pressedText);
+      setFeedback('press_success');
+    } else {
+      // 廢話
+      setPressFeedbackText("對手很不耐煩：「這有什麼好問的？別打斷我說話！」(理智 -5)");
+      setStats(prev => ({ // 使用傳入的 setStats
+                ...prev,
+                sanity: Math.max(0, prev.sanity - 5) // 亂追問扣理智
+      }));
+      setFeedback('press_fail');
+      setShowHint(true); // 追問錯誤後顯示提示
+    }
+
+    setTimeout(() => setFeedback(null), 3000);
+  };
+
+  // 處理出示 (Present)
+  const handlePresent = () => {
+    if (!selectedEvidence) return;
+
+    const currentStmt = round.statements[stmtIndex];
+    const isPressed = pressedMap[stmtIndex];
+
+    // 1. 檢查是否是關鍵證言且尚未追問
+    if (currentStmt.type === 'critical' && !isPressed) {
+        // New: Failed to Press first
+        setFeedback('needs_press');
+        setSelectedEvidence(null); // 清除選擇
+        setShowHint(true); // 嘗試出示但未追問，顯示提示
+        setTimeout(() => setFeedback(null), 3000);
+        return; // 停止動作
+    }
+
+
+    // 判斷邏輯：
+    // 1. 必須是 critical 語句
+    // 2. 必須先追問過 (顯示出 true form) - 已在上方檢查
+    // 3. 證據必須對應
+
+    if (currentStmt.type === 'critical' && currentStmt.weakness === selectedEvidence && isPressed) {
+       // 成功
+       setShowObjection(true);
+       setTimeout(() => {
+         setShowObjection(false);
+         setFeedback('success');
+       }, 1500);
+    } else {
+       // 失敗
+       setFeedback('fail');
+       // 失敗懲罰
+       setTimeout(() => {
+         setFeedback(null);
+         onPresent(false);
+       }, 2500);
+    }
+  };
+
+  const handleNextRound = () => {
+    setFeedback(null);
+    setSelectedEvidence(null);
+    onPresent(true);
+  };
+
+  // 動畫層
+  if (showObjection) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-red-600/90 animate-pulse pointer-events-none">
+         <div className="text-white font-black text-6xl md:text-9xl italic tracking-tighter transform -rotate-6 border-4 border-white p-4 pixel-text-shadow">
+           我有異議！
+         </div>
+      </div>
+    );
+  }
+  if (showHoldIt) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-blue-600/90 animate-pulse pointer-events-none">
+         <div className="text-white font-black text-6xl md:text-9xl italic tracking-tighter transform -rotate-6 border-4 border-white p-4 pixel-text-shadow">
+           等一下！
+         </div>
+      </div>
+    );
+  }
+
+  const currentStatementData = round.statements[stmtIndex];
+  const isCriticalAndNotPressed = currentStatementData.type === 'critical' && !pressedMap[stmtIndex];
+  const isCriticalAndPressed = currentStatementData.type === 'critical' && pressedMap[stmtIndex];
+
+  const displayText = isCriticalAndPressed
+    ? currentStatementData.pressedText
+    : currentStatementData.text;
+
+  return (
+    <div className="flex flex-col h-full relative">
+
+      {/* 對手證言區 */}
+      <div className="bg-red-950 p-6 pixel-box border-b-4 border-red-700 mb-4 relative transition-all duration-500 min-h-[160px] flex flex-col justify-center">
+        <div className="absolute -top-3 left-4 bg-red-600 text-white px-3 py-1 text-sm font-bold border border-white shadow-pixel-white">
+          <span>證言 ({currentRoundIndex + 1}-{stmtIndex + 1}/{round.statements.length})</span>
+          {isCriticalAndPressed && (
+             <span className="bg-yellow-500 text-black text-xs px-1 font-bold animate-pulse ml-2">💥 破綻已揭露</span>
+          )}
+          {isCriticalAndNotPressed && showHint && ( // 增加 showHint 判斷
+             <span className="bg-blue-500 text-white text-xs px-1 font-bold animate-pulse-slow ml-2">❓ 關鍵證言 - 需追問</span> // New Hint
+          )}
+        </div>
+
+        {/* 導航按鈕 (左右箭頭) - 讓玩家自由查看證言 */}
+        <div className="absolute top-1/2 -translate-y-1/2 left-1 md:left-2 z-10">
+             <button onClick={handlePrev} disabled={stmtIndex === 0} className="p-3 bg-red-700/80 text-white hover:bg-red-600 disabled:opacity-40 border border-white/50 pixel-button-nav">
+                ⬅️
+             </button>
+        </div>
+        <div className="absolute top-1/2 -translate-y-1/2 right-1 md:right-2 z-10">
+             <button onClick={handleNext} disabled={stmtIndex === round.statements.length - 1} className="p-3 bg-red-700/80 text-white hover:bg-red-600 disabled:opacity-40 border border-white/50 pixel-button-nav">
+                ➡️
+             </button>
+        </div>
+
+        {/* 修改文字顏色邏輯：只有在已揭露(Pressed)或顯示提示(Hint)時才變色，否則維持白色隱藏特徵 */}
+        <div className={`text-xl font-bold leading-relaxed text-center px-8 ${
+            isCriticalAndPressed 
+                ? "text-yellow-200" 
+                : (isCriticalAndNotPressed && showHint 
+                    ? "text-yellow-300 animate-pulse-slow" 
+                    : "text-white")
+        }`}>
+          "{displayText}"
+        </div>
+      </div>
+
+      {/* 追問反饋氣泡 (臨時顯示) */}
+      {(feedback === 'press_success' || feedback === 'press_fail') && (
+          <div className="absolute top-24 left-0 right-0 mx-auto w-3/4 bg-blue-800 text-white p-3 border border-blue-400 z-10 animate-fade-in text-center pixel-box-small">
+              <div className="font-bold text-yellow-400 mb-1">{feedback === 'press_success' ? "💥 發現矛盾！" : "❓ 追問結果"}</div>
+              {pressFeedbackText}
+          </div>
+      )}
+
+      {/* 玩家狀態 */}
+      <div className="flex justify-between items-center mb-2 px-2 border-b border-gray-700 pb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">🔨</span>
+          <span className="font-bold text-yellow-500 pixel-text-shadow">你的回合</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={hp < 30 ? "text-red-500 animate-pulse text-2xl" : "text-green-500 text-2xl"}>❤️</span>
+          <span className="font-mono text-xl text-green-300 pixel-text-shadow">{hp}% 信心</span>
+        </div>
+      </div>
+
+      {/* 操作區 */}
+      {/* --- Feedback States --- */}
+      {feedback === 'success' ? (
+        <div className="flex-1 bg-green-900/50 pixel-box-small border border-green-500 flex flex-col items-center justify-center animate-fade-in">
+          <span className="text-4xl text-green-400 mb-4">✅</span>
+          <p className="text-lg text-green-100 mb-6 text-center font-bold">{round.counterText}</p>
+          <button onClick={handleNextRound} className="pixel-button bg-green-600 hover:bg-green-700 text-white px-8 py-3 font-bold flex items-center gap-2">
+            下一回合 ➡️
+          </button>
+        </div>
+      ) : feedback === 'fail' ? (
+        <div className="flex-1 bg-red-900/50 pixel-box-small border border-red-500 flex flex-col items-center justify-center animate-shake">
+          <span className="text-4xl text-red-400 mb-4">❌</span>
+          <p className="text-lg text-red-100 mb-2 font-bold">反駁失敗！</p>
+          <p className="text-red-300 mb-2 text-center text-sm">
+             {pressedMap[stmtIndex] && currentStatementData.type === 'critical'
+                ? "雖然你找到了破綻，但出示的證據不對！"
+                : "這句話看起來沒有明顯矛盾，或者你需要先「追問」出細節..."}
+          </p>
+          <p className="text-sm text-red-400">-20 信心值</p>
+        </div>
+      ) : feedback === 'needs_press' ? (
+         // NEW: Needs Press Feedback
+        <div className="flex-1 bg-blue-900/50 pixel-box-small border border-blue-500 flex flex-col items-center justify-center animate-fade-in">
+          <span className="text-4xl text-blue-400 mb-4">🛑</span>
+          <p className="text-xl text-blue-100 mb-2 font-bold">錯誤流程：必須先追問！</p>
+          <p className="text-blue-300 mb-2 text-center text-sm">
+             這是關鍵證言，你必須先用「追問 (Press)」來逼對方說出真正的破綻，才能出示證物。
+          </p>
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col">
+          {/* 證物列表 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 overflow-y-auto flex-1 mb-4 pr-2 max-h-[200px]">
+            {evidenceList.length === 0 && (
+              <div className="col-span-full text-center text-gray-500 py-8">
+                糟糕！你沒有收集到任何證物！
+              </div>
+            )}
+            {/* 修正：使用 evidenceList 而非 inventory */}
+            {evidenceList.map(eId => { 
+              const item = EVIDENCE_DB[eId];
+              return (
+                <div
+                  key={eId}
+                  onClick={() => setSelectedEvidence(eId)}
+                  className={`p-3 text-left border cursor-pointer transition-all pixel-button-small ${
+                    selectedEvidence === eId
+                      ? 'bg-yellow-700 border-yellow-400 shadow-md scale-[1.02] border-2 shadow-pixel-yellow'
+                      : 'bg-slate-800 border-slate-600 hover:bg-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">{item.icon}</span>
+                    <div className="font-bold text-gray-100">{item.name}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 按鈕區 */}
+          <div className="flex gap-3 mt-auto">
+            <button
+                onClick={handlePress}
+                className="pixel-button flex-1 py-3 font-bold text-white transition-colors flex items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 shadow-lg"
+            >
+               <span className='text-xl'>🗣️</span> 追問 (Press)
+            </button>
+
+            <button
+              onClick={handlePresent}
+              disabled={!selectedEvidence && isCriticalAndNotPressed}
+              className={`pixel-button flex-[1.5] py-3 font-bold text-white transition-colors flex items-center justify-center gap-1 ${
+                selectedEvidence
+                    ? "bg-yellow-600 hover:bg-yellow-700 shadow-lg border-yellow-800"
+                    : "bg-slate-700 text-slate-500 border-slate-800 cursor-not-allowed"
+              }`}
+            >
+               <span className='text-xl'>👁️</span>
+               {isCriticalAndNotPressed && selectedEvidence ? '⚠️ 追問優先' : '出示 (Present)'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+// --- 主程式 ---
+
+const App = () => {
+  const [currentSceneId, setCurrentSceneId] = useState('start');
+  const [inventory, setInventory] = useState([]);
+  const [stats, setStats] = useState(INITIAL_STATS);
+
+  const [isDebating, setIsDebating] = useState(false);
+  const [debateRound, setDebateRound] = useState(0);
+
+  // 新增狀態
+  const [isQuizOpen, setIsQuizOpen] = useState(false);
+  const [currentQuizItem, setCurrentQuizItem] = useState(null); // 當前正在作答的證物ID
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [detailItem, setDetailItem] = useState(null); // 當前正在查看詳情的證物ID
+
+  const scrollRef = useRef(null);
+  const currentScene = SCENES[currentSceneId];
+
+  // 檢查生命值和理智值 (遊戲結束條件)
+  useEffect(() => {
+    // 遊戲結束條件：健康或理智值歸零
+    if ((stats.health <= 0 || stats.sanity <= 0) && !currentSceneId.startsWith('bad_end')) {
+        // 如果不在辯論中，則轉到一般失敗結局
+        if(!isDebating) {
+             setCurrentSceneId('bad_end_run');
+        }
+        // 如果在辯論中，則 debate 失敗會經由 handleDebateResult 觸發 bad_end_debate
+    }
+  }, [stats, currentSceneId, isDebating]);
+
+  // 場景捲動
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+    }
+  }, [currentSceneId, isDebating]);
+
+  // 處理選項點擊
+  const handleOptionClick = useCallback((option) => {
+    // 處理理智/健康變化
+    if (option.effect) {
+        setStats(prev => ({
+            health: Math.min(100, Math.max(0, prev.health + (option.effect.health || 0))),
+            sanity: Math.min(100, Math.max(0, prev.sanity + (option.effect.sanity || 0))),
+        }));
+    }
+
+    // 處理開始辯論
+    if (option.action === 'start_debate') {
+      if (inventory.length === 0) {
+          setCurrentSceneId('bad_end_run');
+          return;
+      }
+      setIsDebating(true);
+      setDebateRound(0);
+      setStats(prev => ({ ...prev, health: 100 }));
+      // 由於 isDebating 設為 true，渲染會自動切換到 DebateInterface，
+      // 所以無需設置 nextSceneId，直接 return 即可。
+      return;
+    }
+
+    const nextSceneId = option.nextScene;
+    const nextSceneObj = SCENES[nextSceneId];
+
+    // 處理觸發知識問答
+    if (nextSceneObj && nextSceneObj.startQuizFor) {
+        if (!inventory.includes(nextSceneObj.startQuizFor)) {
+            setCurrentSceneId(nextSceneId);
+            setCurrentQuizItem(nextSceneObj.startQuizFor);
+            setIsQuizOpen(true);
+            return;
+        } else {
+             // 如果已經拿到，直接返回 hub
+             setCurrentSceneId('investigation_hub');
+             return;
+        }
+    }
+
+    // 正常場景跳轉
+    setCurrentSceneId(nextSceneId);
+  }, [inventory]);
+
+  // 處理知識問答結果
+  const handleQuizComplete = (success, itemId) => {
+    setIsQuizOpen(false);
+    setCurrentQuizItem(null);
+
+    if (success) {
+        // 成功：加入證物，顯示詳情，返回 hub
+        setInventory(prev => [...prev, itemId]);
+        setDetailItem(itemId);
+        setIsDetailOpen(true);
+        setCurrentSceneId('investigation_hub');
+    } else {
+        // 失敗：只扣除懲罰 (已在 QuizModal 內處理 sanity 扣除)，並返回調查中心。
+        // 如果健康/理智已歸零，useEffect 會處理遊戲結束。
+        setCurrentSceneId('investigation_hub');
+    }
+  };
+
+  // 處理辯論結果
+  const handleDebateResult = (success) => {
+    if (success) {
+      const nextRound = debateRound + 1;
+      // 假設 DEBATE_SCRIPT 長度為 4 (round 0, 1, 2, 3)
+      if (nextRound >= 4) {
+        setIsDebating(false);
+        setCurrentSceneId('good_end');
+      } else {
+        setDebateRound(nextRound);
+      }
+    } else {
+      const newHealth = stats.health - 20;
+      setStats(prev => ({ ...prev, health: newHealth }));
+      if (newHealth <= 0) {
+        setIsDebating(false);
+        setCurrentSceneId('bad_end_debate');
+      }
+    }
+  };
+
+  // 根據庫存篩選選項
+  const getFilteredOptions = () => {
+    if (currentScene.type !== 'hub') {
+        return currentScene.options;
+    }
+
+    // 篩選掉已經收集到的證物選項
+    return currentScene.options.filter(opt => {
+        if (opt.style === 'action') {
+            return true; // 攤牌選項永遠保留
+        }
+        if (opt.condition) {
+            const requiredItem = opt.condition.replace('!', '');
+            // 如果 condition 是 '!item_id' 且 item_id 不在 inventory 中，則顯示選項
+            if (opt.condition.startsWith('!')) {
+                return !inventory.includes(requiredItem);
+            }
+        }
+        return true;
+    });
+  };
+
+  const restartGame = () => {
+    setStats(INITIAL_STATS);
+    setInventory([]);
+    setCurrentSceneId('start');
+    setIsDebating(false);
+    setDebateRound(0);
+  };
+
+  const handleOpenDetail = (itemId) => {
+    setDetailItem(itemId);
+    setIsDetailOpen(true);
+  };
+
+
+  return (
+    <div className="min-h-screen bg-black text-gray-100 font-sans flex flex-col items-center justify-center p-4 md:p-6">
+
+      {/* 知識問答模態 */}
+      {isQuizOpen && currentQuizItem && (
+        <QuizModal
+            itemId={currentQuizItem}
+            onQuizComplete={handleQuizComplete}
+            stats={stats}
+            setStats={setStats}
+        />
+      )}
+
+      {/* 證物詳情模態 */}
+      {isDetailOpen && detailItem && (
+        <EvidenceDetailModal
+            itemId={detailItem}
+            onClose={() => setIsDetailOpen(false)}
+        />
+      )}
+
+
+      <div className="w-full max-w-4xl bg-slate-900 pixel-box border border-slate-700 shadow-pixel-dark overflow-hidden flex flex-col md:flex-row h-[90vh] md:h-[80vh]">
+
+        {/* 左側：遊戲區塊 */}
+        <div className={`flex-1 relative flex flex-col ${isDebating ? 'bg-slate-900' : currentScene.bg} transition-colors duration-500`}>
+
+          {!isDebating && (
+            <div className="absolute top-0 left-0 w-full p-4 bg-gradient-to-b from-black/80 to-transparent z-10 flex justify-between items-start pointer-events-none">
+               <div className="flex items-center gap-2 text-blue-300 font-bold text-lg pixel-text-shadow">
+                 <span className='text-2xl'>👻</span> 迷霧派對：反毒文字冒險
+               </div>
+            </div>
+          )}
+
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 md:p-10 flex flex-col relative">
+
+            {/* 辯論介面 */}
+            {isDebating && (
+              <DebateInterface
+                currentRoundIndex={debateRound}
+                hp={stats.health}
+                evidenceList={inventory}
+                onPresent={handleDebateResult}
+                // 傳遞 setStats 讓亂追問時可以扣理智
+                setStats={setStats}
+              />
+            )}
+
+            {/* 普通場景介面 */}
+            {!isDebating && (
+                <div className="max-w-2xl mx-auto w-full mt-8 animate-fade-in-up">
+                    <div className="mb-2 text-yellow-500 font-bold tracking-widest text-sm uppercase pixel-text-shadow">Current Scene</div>
+                    <h2 className="text-4xl md:text-5xl font-bold mb-8 text-white tracking-tight leading-tight pixel-text-shadow">
+                        {currentScene.title}
+                    </h2>
+                    <div className="prose prose-invert prose-lg text-gray-200 leading-loose whitespace-pre-wrap bg-black/50 p-6 pixel-box-small border-l-4 border-blue-500">
+                        {currentScene.text}
+                    </div>
+
+                    {/* 結局畫面 */}
+                    {currentScene.type === 'win' && (
+                        <div className="mt-8 p-6 bg-green-900/40 border border-green-500 pixel-box-small text-center animate-bounce">
+                            <span className="text-6xl mx-auto text-green-400 mb-2">🛡️</span>
+                            <div className="text-2xl font-bold text-green-300 pixel-text-shadow">CASE CLOSED</div>
+                            <div className="text-green-400">成功保護自己與朋友</div>
+                        </div>
+                    )}
+                    {(currentScene.type === 'lose' || currentScene.type === 'neutral') && (
+                        <div className="mt-8 p-6 bg-red-900/40 border border-red-500 pixel-box-small text-center">
+                            <span className="text-6xl mx-auto text-red-400 mb-2">❌</span>
+                            <div className="text-2xl font-bold text-red-300 pixel-text-shadow">挑戰失敗</div>
+                            {currentScene.id === 'bad_end_run' && <div className="text-red-400">因身心崩潰或證據不足而失敗</div>}
+                        </div>
+                    )}
+                </div>
+            )}
+          </div>
+
+          {/* 底部選項區 */}
+          {!isDebating && (
+            <div className="bg-slate-950 p-6 border-t border-slate-800">
+               {(currentScene.type === 'win' || currentScene.type === 'lose' || currentScene.type === 'neutral') ? (
+                  <button
+                    onClick={restartGame}
+                    className="pixel-button w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg flex items-center justify-center gap-2 transition-transform"
+                  >
+                    <span className='text-xl'>🚪</span> 重新挑戰 / 重啟遊戲
+                  </button>
+               ) : (
+                 <div className="grid grid-cols-1 gap-3 max-w-2xl mx-auto">
+                   {getFilteredOptions().map((option, index) => (
+                     <button
+                       key={index}
+                       onClick={() => handleOptionClick(option)}
+                       className={`pixel-button-option p-4 text-left border transition-all flex items-center justify-between group ${
+                         option.style === 'action'
+                           ? "bg-red-600 hover:bg-red-700 border-red-500 text-white font-bold shadow-lg shadow-red-900/20"
+                           : "bg-slate-800 hover:bg-slate-700 border-slate-600 hover:border-blue-400 text-blue-100"
+                       }`}
+                     >
+                       <span className="flex items-center gap-3">
+                         <span className={`flex items-center justify-center w-8 h-8 text-sm font-bold border ${option.style === 'action' ? 'bg-white text-red-600 border-red-600' : 'bg-slate-700 text-blue-300 border-slate-600'}`}>
+                           {index + 1}
+                         </span>
+                         {option.text}
+                       </span>
+                       {option.style !== 'action' && <span className="w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity text-blue-400 text-xl">🔎</span>}
+                       {option.style === 'action' && <span className="w-5 h-5 text-white text-xl">🔨</span>}
+                     </button>
+                   ))}
+                 </div>
+               )}
+            </div>
+          )}
+        </div>
+        
+        {/* 右側：庫存與狀態區 */}
+        <div className="md:w-64 bg-slate-800 p-6 border-l border-slate-700 flex flex-col">
+            <h3 className="text-xl font-black text-yellow-400 mb-4 flex items-center gap-2 border-b border-slate-700 pb-2 pixel-text-shadow">
+                <span className='text-2xl'>📒</span> 庫存與狀態
+            </h3>
+            
+            {/* 狀態顯示 */}
+            <div className="space-y-3 mb-6">
+                <div className="flex justify-between items-center text-sm font-bold p-2 pixel-box-small-no-shadow border-l-4 border-green-500 bg-slate-700">
+                    <div className="flex items-center gap-2 text-green-400">
+                        <span className='text-xl'>❤️</span> 信心/健康
+                    </div>
+                    <span className="font-mono text-lg text-green-300">{stats.health}%</span>
+                </div>
+                <div className="flex justify-between items-center text-sm font-bold p-2 pixel-box-small-no-shadow border-l-4 border-blue-500 bg-slate-700">
+                    <div className="flex items-center gap-2 text-blue-400">
+                        <span className='text-xl'>🧠</span> 理智/冷靜
+                    </div>
+                    <span className="font-mono text-lg text-blue-300">{stats.sanity}%</span>
+                </div>
+            </div>
+
+            {/* 證物庫存 */}
+            <h4 className="text-lg font-bold text-gray-200 mb-3 flex items-center gap-2">
+                <span className='text-2xl'>🔨</span> 已收集證物 ({inventory.length}/4)
+            </h4>
+            <div className="flex flex-col gap-3 overflow-y-auto flex-1">
+                {inventory.length === 0 ? (
+                    <p className="text-sm text-gray-400 italic">
+                        你還沒有收集到任何關鍵證據。
+                    </p>
+                ) : (
+                    inventory.map(itemId => (
+                        <EvidenceCard key={itemId} itemId={itemId} onClick={handleOpenDetail} />
+                    ))
+                )}
+            </div>
+        </div>
+
+      </div>
+
+      <style>{`
+        /* 引入像素風格字體 */
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        
+        /* 全局字體和基本樣式 */
+        .font-sans, .pixel-box, .pixel-button, .pixel-button-small, .pixel-button-option {
+            font-family: 'Press Start 2P', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        }
+        
+        /* 移除 Tailwind 的圓角, 實現像素化 */
+        .pixel-box, .pixel-button, .pixel-button-small, .pixel-button-option {
+            border-radius: 0 !important;
+        }
+
+        /* 像素風格容器 */
+        .pixel-box {
+            box-shadow: 8px 8px 0px 0px #1a202c !important; /* 模擬陰影偏移 */
+        }
+        .shadow-pixel-dark {
+            box-shadow: 10px 10px 0px 0px #0f172a !important; 
+        }
+        .shadow-pixel-blue {
+            box-shadow: 8px 8px 0px 0px #3b82f6 !important; /* 藍色陰影 */
+        }
+        .shadow-pixel-yellow {
+             box-shadow: 4px 4px 0px 0px #f59e0b !important;
+        }
+
+        .pixel-box-small {
+             border-radius: 0 !important;
+             box-shadow: 4px 4px 0px 0px #0f172a !important; 
+        }
+        .pixel-box-small-no-shadow {
+             border-radius: 0 !important;
+             box-shadow: none; 
+        }
+
+        /* 像素風格按鈕基底 */
+        .pixel-button {
+            border: 2px solid white;
+            box-shadow: 4px 4px 0px 0px #374151; /* 陰影 */
+            transition: all 0.05s ease-out;
+        }
+        .pixel-button:hover {
+            box-shadow: 6px 6px 0px 0px #374151;
+            transform: translate(-2px, -2px); /* 輕微抬升 */
+        }
+        .pixel-button:active {
+            box-shadow: 0px 0px 0px 0px #374151;
+            transform: translate(4px, 4px); /* 按下效果 */
+        }
+        .pixel-button:disabled {
+            box-shadow: none !important;
+            transform: none !important;
+        }
+
+        .pixel-button-option {
+            border: 1px solid #475569;
+            transition: all 0.1s ease-out;
+        }
+        .pixel-button-option:hover {
+            border: 1px solid #60a5fa;
+        }
+
+        /* 導航按鈕樣式 */
+        .pixel-button-nav {
+            border: 2px solid white;
+            box-shadow: 2px 2px 0px 0px #000;
+        }
+        .pixel-button-nav:hover {
+            box-shadow: 3px 3px 0px 0px #000;
+            transform: translate(-1px, -1px);
+        }
+        .pixel-button-nav:active {
+            box-shadow: 0px 0px 0px 0px #000;
+            transform: translate(2px, 2px);
+        }
+
+
+        .pixel-text-shadow {
+            text-shadow: 2px 2px 0 #000; /* 模擬粗體和像素感 */
+        }
+
+
+        /* 動畫 */
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fade-in-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes zoom-in { 0% { opacity: 0; transform: scale(0.9); } 100% { opacity: 1; transform: scale(1); } }
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-5px); }
+          75% { transform: translateX(5px); }
+        }
+        /* New: Slow Pulse */
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        .animate-pulse-slow { animation: pulse-slow 3s infinite; }
+
+        .animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
+        .animate-fade-in-up { animation: fade-in-up 0.5s ease-out forwards; }
+        .animate-zoom-in { animation: zoom-in 0.3s ease-out forwards; }
+        .animate-shake { animation: shake 0.3s ease-in-out; }
+      `}</style>
+    </div>
+  );
+};
+
+export default App;
