@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>校外教學：安全守護者 RPG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
+        
+        :root {
+            --vintage-bg: #2b2621;
+            --vintage-panel: #3d352d;
+            --vintage-accent: #d4a373;
+            --vintage-text: #faedcd;
+            --vintage-border: #8c7851;
+            --warning-red: #ae2012;
+        }
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: var(--vintage-bg);
+            color: var(--vintage-text);
+            overflow: hidden;
+            background-image: url("https://www.transparenttextures.com/patterns/p6.png");
+        }
+
+        /* --- 主畫面裝飾特效 --- */
+        .bg-icon {
+            position: absolute;
+            color: rgba(212, 163, 115, 0.05);
+            z-index: 0;
+            pointer-events: none;
+            animation: float 10s infinite ease-in-out;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(10deg); }
+        }
+
+        .emergency-light {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, transparent, var(--warning-red), transparent);
+            opacity: 0.3;
+            animation: pulse-light 2s infinite;
+        }
+
+        @keyframes pulse-light {
+            0%, 100% { opacity: 0.1; }
+            50% { opacity: 0.6; }
+        }
+
+        .title-glitch {
+            text-shadow: 2px 2px 0px rgba(174, 32, 18, 0.5), -2px -2px 0px rgba(0, 0, 0, 0.5);
+        }
+
+        .decorative-frame {
+            border: 2px solid var(--vintage-border);
+            padding: 2.5rem;
+            position: relative;
+            background: rgba(0,0,0,0.2);
+            backdrop-filter: blur(4px);
+        }
+
+        .decorative-frame::before, .decorative-frame::after {
+            content: '';
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border: 4px solid var(--vintage-accent);
+        }
+
+        .top-left { top: -6px; left: -6px; border-right: 0; border-bottom: 0; }
+        .top-right { top: -6px; right: -6px; border-left: 0; border-bottom: 0; }
+        .bottom-left { bottom: -6px; left: -6px; border-right: 0; border-top: 0; }
+        .bottom-right { bottom: -6px; right: -6px; border-left: 0; border-top: 0; }
+
+        /* --- 震動特效動畫 --- */
+        @keyframes screen-shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
+        .shake-active {
+            animation: screen-shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+            transform: translate3d(0, 0, 0);
+            backface-visibility: hidden;
+            perspective: 1000px;
+        }
+
+        .rpg-container {
+            background-color: var(--vintage-panel);
+            border: 4px solid var(--vintage-border);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+            border-radius: 1rem;
+        }
+
+        .bus-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.75rem;
+            max-width: 500px;
+            margin: 0 auto;
+            background: #231f1b;
+            padding: 1.5rem;
+            border-radius: 1.5rem;
+            border: 3px solid var(--vintage-border);
+            position: relative;
+        }
+
+        .seat {
+            width: 100%;
+            aspect-ratio: 1;
+            background: #4a4036;
+            border-radius: 0.6rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end; 
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden; 
+            border: 2px solid transparent;
+        }
+
+        .seat .icon-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            width: 100%;
+        }
+
+        .seat-label {
+            font-size: 0.6rem;
+            color: #ffffff;
+            white-space: nowrap;
+            text-align: center;
+            width: 100%;
+            background: rgba(43, 38, 33, 0.9);
+            padding: 2px 0;
+            pointer-events: none;
+            text-shadow: 1px 1px 1px black;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            line-height: 1.2;
+        }
+
+        .seat:hover:not(.aisle) {
+            transform: scale(1.05);
+            background: #5e5144;
+            z-index: 10;
+            border-color: var(--vintage-accent);
+        }
+
+        .seat.aisle { background: transparent; cursor: default; border: none; justify-content: center; padding: 0; }
+        .seat.exit-door { background: #3e5c46; border-color: #5a8566; }
+        .seat.npc { border-color: #e9c46a; animation: pulse-border 2s infinite; }
+        .seat.item { border-color: #a8dadc; }
+        .seat.player { background: #5a8566; box-shadow: 0 0 15px rgba(90, 133, 102, 0.5); border-color: #fefae0; }
+
+        @keyframes pulse-border {
+            0% { border-color: #e9c46a; }
+            50% { border-color: #f4a261; }
+            100% { border-color: #e9c46a; }
+        }
+
+        .dialog-box {
+            min-height: 220px;
+            border: 3px solid var(--vintage-border);
+            background: rgba(35, 31, 27, 0.95);
+            border-radius: 1rem;
+        }
+
+        .inventory-slot {
+            width: 50px;
+            height: 50px;
+            background: #231f1b;
+            border: 1px solid var(--vintage-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            border-radius: 0.5rem;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(26, 23, 20, 0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(5px);
+        }
+
+        .info-modal {
+            background: var(--vintage-panel);
+            border: 4px solid var(--vintage-accent);
+            border-radius: 1.5rem;
+            max-width: 450px;
+            width: 90%;
+            padding: 2rem;
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.7);
+        }
+
+        #main-menu {
+            background: linear-gradient(135deg, #2b2621 0%, #3d352d 100%);
+            z-index: 1000;
+        }
+        
+        .menu-btn {
+            background: #4a4036;
+            border: 2px solid var(--vintage-border);
+            padding: 1.2rem 2.5rem;
+            width: 280px;
+            margin: 0.5rem;
+            border-radius: 0.75rem;
+            font-weight: 900;
+            color: var(--vintage-text);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 6px 0px #231f1b;
+            position: relative;
+            z-index: 10;
+        }
+        
+        .menu-btn:hover { 
+            background: var(--vintage-accent); 
+            color: #2b2621;
+            border-color: #fefae0; 
+            transform: translateY(-2px); 
+            box-shadow: 0 8px 12px rgba(0,0,0,0.4);
+        }
+
+        .menu-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0px #231f1b;
+        }
+
+        .thought { color: #a8dadc; font-style: italic; }
+        .urgency { color: #e76f51; font-weight: bold; }
+        
+        header {
+            background-color: #231f1b;
+            border-bottom: 3px solid var(--vintage-border);
+        }
+
+        .exp-fill {
+            background-color: var(--vintage-accent);
+        }
+
+        .speed-blur {
+            filter: blur(1px);
+            animation: blur-motion 0.1s infinite;
+        }
+
+        @keyframes blur-motion {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(1px); }
+            100% { transform: translateY(0px); }
+        }
+
+        .typing::after {
+            content: '|';
+            animation: blink 0.7s infinite;
+            margin-left: 2px;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- 主畫面與裝飾圖示 -->
+    <div id="main-menu" class="fixed inset-0 flex flex-col items-center justify-center">
+        <i class="fas fa-bus-alt bg-icon text-9xl" style="top: 10%; left: 8%; animation-delay: 0s;"></i>
+        <i class="fas fa-exclamation-triangle bg-icon text-8xl" style="top: 65%; left: 12%; animation-delay: 2s;"></i>
+        <i class="fas fa-shield-alt bg-icon text-9xl" style="top: 15%; right: 10%; animation-delay: 4s;"></i>
+        <i class="fas fa-first-aid bg-icon text-7xl" style="top: 60%; right: 15%; animation-delay: 1s;"></i>
+        <i class="fas fa-fire bg-icon text-6xl" style="top: 40%; left: 20%; animation-delay: 3s; opacity: 0.03;"></i>
+        
+        <div class="emergency-light"></div>
+        
+        <div class="decorative-frame mb-12 text-center">
+            <div class="top-left"></div><div class="top-right"></div>
+            <div class="bottom-left"></div><div class="bottom-right"></div>
+            
+            <div class="flex items-center justify-center gap-4 mb-3">
+                <i class="fas fa-user-shield text-4xl text-amber-500 opacity-80"></i>
+                <h1 class="text-7xl font-black text-amber-200 tracking-widest drop-shadow-2xl title-glitch">校外教學</h1>
+                <i class="fas fa-bus text-4xl text-amber-500 opacity-80"></i>
+            </div>
+            <p class="text-2xl text-amber-100 opacity-70 font-bold border-t border-amber-900 pt-3">
+                － 安全守護者 RPG －
+            </p>
+        </div>
+
+        <div class="flex flex-col items-center">
+            <button onclick="startNewGame()" class="menu-btn group">
+                <span class="flex items-center justify-center gap-3">
+                    <i class="fas fa-play text-xl group-hover:scale-125 transition-transform"></i> 
+                    開始執行職務
+                </span>
+            </button>
+            <p class="mt-6 text-stone-500 text-xs italic">身為風紀股長，整台巴士的平安就在你手中...</p>
+        </div>
+    </div>
+
+    <!-- 遊戲 UI -->
+    <div id="game-ui" class="hidden h-full flex flex-col">
+        <header class="p-3 shadow-lg z-20">
+            <div class="max-w-5xl mx-auto flex justify-between items-start">
+                <div class="flex items-center gap-3">
+                    <div class="bg-amber-700 w-12 h-12 rounded-full flex items-center justify-center border-2 border-amber-200 shadow-inner">
+                        <i class="fas fa-user-shield text-2xl text-amber-100"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-amber-50 text-lg leading-tight">高樂安 <span class="text-xs font-normal text-amber-300 opacity-70">(風紀股長)</span></h1>
+                        <div class="flex items-center gap-2 text-xs text-amber-100 opacity-60">
+                            <span>冷靜值</span>
+                            <div class="w-24 h-2 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
+                                <div id="exp-bar" class="exp-fill h-full w-full transition-all duration-500"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-right flex flex-col items-end gap-1">
+                    <div id="quest-container" class="flex flex-col items-end gap-1">
+                        <div id="quest-display" class="text-amber-200 font-bold text-sm bg-stone-900 px-3 py-1 rounded-lg border border-stone-700 shadow-inner">載入中...</div>
+                        <div id="subquest-display" class="hidden text-amber-400 font-semibold text-xs bg-stone-900 bg-opacity-40 px-2 py-0.5 rounded border border-stone-700">支線: 和同學聊天</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="flex-1 overflow-y-auto p-4 relative flex justify-center items-center" id="game-container">
+            <div id="game-main-layout" class="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-12 gap-8 h-full max-h-[800px]">
+                <div class="lg:col-span-6 flex flex-col rpg-container p-6 relative justify-center">
+                    <div id="bus-visual" class="bus-grid"></div>
+                </div>
+
+                <div class="lg:col-span-6 flex flex-col gap-6 h-full justify-center">
+                    <div class="flex gap-4 h-24">
+                        <div class="flex-1 bg-stone-900 rounded-xl p-3 border border-stone-700 flex flex-col">
+                            <span class="text-[10px] text-amber-200 opacity-40 mb-2 uppercase tracking-widest font-bold">安全手冊清單 (已掌握)</span>
+                            <div class="flex gap-3" id="inventory-container"></div>
+                        </div>
+                        <div class="w-1/3 bg-stone-900 rounded-xl p-3 border border-stone-700 flex flex-col justify-center items-center text-center">
+                            <div class="text-[10px] text-amber-200 opacity-40 mb-1 uppercase tracking-widest font-bold">目前精神狀態</div>
+                            <span id="hp-display" class="text-xl font-bold text-emerald-400">冷靜</span>
+                        </div>
+                    </div>
+
+                    <div class="dialog-box p-6 shadow-2xl relative border-l-8 border-l-amber-600 flex flex-col justify-between" id="dialogue-box-container">
+                        <div>
+                            <div class="absolute -top-3 left-4 bg-stone-800 px-4 py-1 rounded-md text-sm font-bold text-amber-100 border border-stone-600" id="dialogue-speaker">系統</div>
+                            <div id="dialogue-text" class="text-stone-100 text-lg mb-4 leading-relaxed mt-2 min-h-[120px] overflow-y-auto">...</div>
+                        </div>
+                        <div id="choices-container" class="flex gap-3 flex-wrap justify-end"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal-overlay" class="modal-overlay">
+        <div id="info-modal-box" class="info-modal text-center">
+            <div id="modal-icon" class="text-5xl mb-4"></div>
+            <h3 id="modal-title" class="text-2xl font-bold text-amber-50 mb-2"></h3>
+            <p id="modal-content" class="text-stone-300 mb-6 leading-relaxed text-left"></p>
+            <button onclick="closeModal()" id="modal-close-btn" class="bg-amber-700 hover:bg-amber-600 text-white px-8 py-2 rounded-full font-bold transition-all shadow-lg border-2 border-amber-200 border-opacity-20">記住了</button>
+        </div>
+    </div>
+
+    <script>
+        let playerData = {
+            name: "高樂安",
+            hp: 100,
+            inventory: [],
+            questStatus: 'intro',
+            achievements: [],
+            sideQuestMing: false, 
+            sideQuestMei: false,  
+            metNpcs: [],
+            teacherHelpBy: null,
+            currentItemStep: 0
+        };
+
+        const npcs = {
+            'teacher': { 
+                name: "林老師", icon: "fa-chalkboard-teacher", color: "text-amber-200", 
+                impression: "林老師今天穿了運動服，雖然還是一臉嚴肅，但細微的黑眼圈透露出她昨晚為了行程檢查徹夜未眠。",
+                intro: "「樂安，來得正好。雖然你是風紀，但今天你更像是大家的保險。司機大哥說這台巴士是最新款，內裝我還不熟悉，你能幫老師逐一確認安全設備嗎？」"
+            },
+            'driver': { 
+                name: "王叔叔", icon: "fa-id-card", color: "text-blue-300", 
+                impression: "嚼著檳榔的司機大哥，眼神卻異常銳利地盯著後照鏡。這台龐然大物在他手下彷彿只是玩具。",
+                intro: "「少年仔，別看這車新就大意。滅火器在我腳邊，安全門在後頭，記好位置。在高速公路上，一秒鐘就是一條命，懂嗎？」" 
+            },
+            'mei': { 
+                name: "周雨望", icon: "fa-female", color: "text-rose-300", 
+                impression: "平時最愛帶動氣氛的雨望，今天卻縮在靠窗的位置。她纖細的手指不斷攪動著制服裙擺，眼神飄忽。",
+                intro: "「樂安...你覺得這台車穩嗎？剛才上車時，我總覺得引擎的聲音聽起來像在發火...我可能太緊張了，對吧？」" 
+            },
+            'ming': { 
+                name: "謝昊霖", icon: "fa-child", color: "text-orange-300", 
+                impression: "班上的麻煩製造機，此時正興奮地踩在椅子上。他似乎完全沒意識到這並非遊樂場。",
+                intro: "「哈哈！高樂安你看！從這裡看出去視野超讚！喂，你別又要說教了，今天放輕鬆點啦！」" 
+            }
+        };
+
+        const achievementsInfo = {
+            'sharp_eye': { name: '敏銳觀察者', desc: '不僅維持了秩序，更在細節中嗅到了不安的氣息。', icon: 'fa-eye' },
+            'gentle_heart': { name: '心靈港灣', desc: '在恐慌蔓延前，你先種下了名為安心的種子。', icon: 'fa-heart' }
+        };
+
+        const items = {
+            'hammer': { 
+                name: "車窗擊破器", icon: "fa-hammer", 
+                questions: [
+                    { q: "【第一題】若濃煙遮蔽視線，你必須憑本能擊碎玻璃。你會瞄準哪裡？", a: ["瞄準玻璃正中央，用力捶打", "對準四個角落，擊碎後清除邊緣碎片", "先拔掉窗戶密封膠條再推開", "用身體直接撞擊整片玻璃"], correct: 1 },
+                    { q: "【第二題】擊碎玻璃後，下列哪個動作最重要？", a: ["直接跳出車外", "等待濃煙散去", "清除窗框殘留的尖銳玻璃碎屑", "檢查擊破器是否有受損"], correct: 2 },
+                    { q: "【第三題】擊破器通常位於車廂的什麼位置？", a: ["司機座位下", "行李箱內", "車窗旁的明顯固定架上", "車頂天窗旁"], correct: 2 }
+                ],
+                info: "破窗精準學：鋼化玻璃的中心最耐衝擊。對準四角擊碎後，碎裂的顆粒依然尖銳，必須清除邊緣碎片以免逃生時割傷動脈。"
+            },
+            'extinguisher': { 
+                name: "乾粉滅火器", icon: "fa-fire-extinguisher", 
+                questions: [
+                    { q: "【第一題】滅火器指標停在綠色區間。除了『拉、瞄、壓、掃』，你還知道什麼？", a: ["只要火還在燒，就不能逃跑", "火勢超過一個垃圾桶高度時，應立即撤離", "對準火燄最上方的煙霧噴灑", "噴完後應立即深呼吸確保肺部"], correct: 1 },
+                    { q: "【第二題】使用滅火器時，應該站在火源的什麼方位？", a: ["上風處", "下風處", "正上方", "距離火源10公分處"], correct: 0 },
+                    { q: "【第三題】乾粉滅火器噴灑後，現場最嚴重的問題可能是？", a: ["地面變太滑", "粉塵導致視線模糊與呼吸困難", "溫度升高", "引發二次爆炸"], correct: 1 }
+                ],
+                info: "撤離決策：滅火器僅限初期滅火。一旦火勢蔓延或濃煙遮蔽逃生口，應立即放棄滅火。活下去比滅火更重要。"
+            },
+            'door_key': { 
+                name: "緊急門開關", icon: "fa-door-open", 
+                questions: [
+                    { q: "【第一題】如果電力完全中斷，這道門還能運作嗎？", a: ["它是純機械結構，扳開蓋子旋轉即可", "需要電力解鎖，斷電時絕對無法開啟", "必須先拔掉門縫的密封膠條才能動", "必須等整台車冷卻後才能手動"], correct: 0 },
+                    { q: "【第二題】操作緊急出口開關前，通常需要先完成什麼步驟？", a: ["向司機報備", "打開保險蓋或拉開紅色手柄", "踢開車門", "大喊救命"], correct: 1 },
+                    { q: "【第三題】若緊急門順利開啟，下車時應注意？", a: ["直接頭朝下跳出", "確認車外地面安全且無後方來車", "等待所有人排好隊", "先把行李丟出去"], correct: 1 }
+                ],
+                info: "手動機制：緊急門是獨立機械結構，不受斷電影響。操作時手感會很重，需用力推開。"
+            },
+            'roof_key': { 
+                name: "車頂逃生窗", icon: "fa-arrow-up", 
+                questions: [
+                    { q: "【第一題】如果車輛意外落水或翻覆，這道天窗的操作是？", a: ["水壓會鎖死，應等待灌滿水", "解開鎖扣後用力向上頂出", "這只是裝飾用的氣窗", "需要鑰匙才能從外部解鎖"], correct: 1 },
+                    { q: "【第二題】車頂逃生窗除了逃生，在一般火災中還有什麼功能？", a: ["讓陽光照進來", "通風排煙，延緩窒息風險", "方便消防員空降", "觀察火勢大小"], correct: 1 },
+                    { q: "【第三題】若車輛落水，何時是開啟天窗的最佳時機？", a: ["水淹過頭頂時", "落水瞬間，趁車內尚未完全進水前", "等車子沉到水底", "等到體力耗盡時"], correct: 1 }
+                ],
+                info: "天窗求生：當兩側門窗因水壓 or 變形受阻，車頂天窗是唯一生還機會。頂出後應爬至車頂高處待援。"
+            }
+        };
+
+        const busLayout = [
+            'N:driver', ' ', ' ', ' ', 'D:前門',
+            'S', 'S', ' ', ' ', 'N:teacher',
+            'S', 'S', 'I:roof_key', 'S', 'S', 
+            'S', 'S', ' ', 'S', 'I:extinguisher',
+            'S', 'N:mei', ' ', 'P', 'S',
+            'I:door_key', ' ', ' ', ' ', 'D:後門',
+            'S', 'S', ' ', 'S', 'S',
+            'S', 'S', ' ', 'S', 'I:hammer',
+            'S', 'S', ' ', 'S', 'N:ming' 
+        ];
+
+        let typingTimer = null;
+
+        function typeWriter(text, elementId, speed = 40, callback) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = "";
+            element.classList.add('typing');
+            let i = 0; let isTag = false; let currentText = "";
+            if (typingTimer) clearInterval(typingTimer);
+            typingTimer = setInterval(() => {
+                if (i < text.length) {
+                    const char = text.charAt(i);
+                    if (char === '<') isTag = true;
+                    if (char === '>') isTag = false;
+                    currentText += char;
+                    if (!isTag) element.innerHTML = currentText;
+                    i++;
+                } else {
+                    clearInterval(typingTimer);
+                    element.classList.remove('typing');
+                    if (callback) callback();
+                }
+            }, speed);
+        }
+
+        function triggerShake() {
+            const container = document.getElementById('game-main-layout');
+            container.classList.remove('shake-active');
+            void container.offsetWidth; 
+            container.classList.add('shake-active');
+            setTimeout(() => { container.classList.remove('shake-active'); }, 500);
+        }
+
+        function setDialogue(speaker, text, options = []) {
+            document.getElementById('dialogue-speaker').innerText = speaker;
+            const container = document.getElementById('choices-container');
+            container.innerHTML = ''; 
+            typeWriter(text, 'dialogue-text', 30, () => {
+                options.forEach(opt => {
+                    const btn = document.createElement('button');
+                    btn.className = 'bg-stone-800 hover:bg-amber-700 text-stone-100 hover:text-white px-5 py-2 rounded-lg border border-stone-600 hover:border-amber-400 text-sm font-bold transition-all shadow-md active:scale-95 text-left w-full sm:w-auto';
+                    btn.innerText = opt.text;
+                    btn.onclick = opt.action;
+                    container.appendChild(btn);
+                });
+            });
+        }
+
+        function showAchievementModal(id) {
+            const a = achievementsInfo[id];
+            const box = document.getElementById('info-modal-box');
+            box.style.borderColor = "#e9c46a";
+            document.getElementById('modal-icon').innerHTML = `<i class="fas ${a.icon} text-amber-400"></i>`;
+            document.getElementById('modal-title').innerHTML = `<span class="text-amber-400">達成行動：</span>${a.name}`;
+            document.getElementById('modal-content').innerText = a.desc;
+            document.getElementById('modal-overlay').style.display = 'flex';
+        }
+
+        function showKnowledgeModal(itemKey, nextAction) {
+            const item = items[itemKey];
+            const box = document.getElementById('info-modal-box');
+            box.style.borderColor = "#d4a373";
+            document.getElementById('modal-icon').innerHTML = `<i class="fas ${item.icon} text-amber-500"></i>`;
+            document.getElementById('modal-title').innerText = item.name;
+            document.getElementById('modal-content').innerText = item.info;
+            document.getElementById('modal-overlay').style.display = 'flex';
+            document.getElementById('modal-close-btn').onclick = () => { closeModal(); if(nextAction) nextAction(); };
+        }
+
+        function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+
+        function updateUI() {
+            const hpDisplay = document.getElementById('hp-display');
+            if (playerData.hp > 80) { hpDisplay.innerText = "非常冷靜"; hpDisplay.className = "text-xl font-bold text-emerald-400"; }
+            else if (playerData.hp > 50) { hpDisplay.innerText = "感到焦慮"; hpDisplay.className = "text-xl font-bold text-amber-400"; }
+            else if (playerData.hp > 0) { hpDisplay.innerText = "極度恐慌"; hpDisplay.className = "text-xl font-bold text-orange-500"; }
+            else { hpDisplay.innerText = "崩潰邊緣"; hpDisplay.className = "text-xl font-bold text-stone-500"; }
+            document.getElementById('exp-bar').style.width = `${Math.max(0, playerData.hp)}%`;
+            const inv = document.getElementById('inventory-container');
+            inv.innerHTML = '';
+            playerData.inventory.forEach(key => {
+                inv.innerHTML += `<div class="inventory-slot text-amber-200 border-amber-500 bg-stone-800 shadow-inner"><i class="fas ${items[key].icon}"></i></div>`;
+            });
+            while(inv.children.length < 4) inv.innerHTML += `<div class="inventory-slot text-stone-800"><i class="fas fa-question opacity-10"></i></div>`;
+        }
+
+        function renderBus() {
+            const grid = document.getElementById('bus-visual');
+            grid.innerHTML = '';
+            busLayout.forEach(cell => {
+                const div = document.createElement('div');
+                div.className = 'seat';
+                let iconHtml = '', labelHtml = '';
+                if (cell === ' ') { div.className += ' aisle'; iconHtml = '<i class="fas fa-circle text-stone-800 text-[4px] opacity-10"></i>'; }
+                else if (cell.startsWith('D:')) { div.className += ' exit-door'; iconHtml = '<i class="fas fa-door-open text-stone-100"></i>'; labelHtml = `<span class="seat-label">${cell.split(':')[1]}</span>`; }
+                else if (cell.startsWith('N:')) {
+                    const key = cell.split(':')[1];
+                    div.className += ' npc';
+                    iconHtml = `<i class="fas ${npcs[key].icon} ${npcs[key].color}"></i>`;
+                    labelHtml = `<span class="seat-label">${npcs[key].name}</span>`;
+                    div.onclick = () => interactNPC(key);
+                } else if (cell.startsWith('I:')) {
+                    const key = cell.split(':')[1];
+                    div.className += ' item';
+                    if (playerData.inventory.includes(key)) { iconHtml = `<i class="fas ${items[key].icon} text-emerald-400"></i>`; labelHtml = `<span class="seat-label">${items[key].name}</span>`; }
+                    else { iconHtml = '<i class="fas fa-exclamation-triangle text-amber-400 animate-pulse"></i>'; labelHtml = '<span class="seat-label">???</span>'; }
+                    div.onclick = () => interactItem(key);
+                } else if (cell === 'P') { div.className += ' player'; iconHtml = '<i class="fas fa-user-ninja text-white"></i>'; labelHtml = '<span class="seat-label">我</span>'; }
+                else { iconHtml = '<i class="fas fa-chair text-stone-700 opacity-20"></i>'; }
+                div.innerHTML = `<div class="icon-wrapper">${iconHtml}</div>${labelHtml}`;
+                grid.appendChild(div);
+            });
+        }
+
+        function startNewGame() {
+            document.getElementById('main-menu').classList.add('hidden');
+            document.getElementById('game-ui').classList.remove('hidden');
+            startGame();
+        }
+
+        function startGame() { updateQuestBasedOnStatus(); renderBus(); updateUI(); setDialogue("高樂安", "巴士引擎的震動從腳底傳來，車門關閉的聲音代表旅程即將開始。<br><span class='thought'>( 林老師坐在前排，我應該先去向她報到，詢問今天的安全檢查職責。)</span>"); }
+
+        function interactNPC(key) {
+            if (!playerData.metNpcs.includes(key)) {
+                playerData.metNpcs.push(key);
+                setDialogue("高樂安", `<span class='thought'>( ${npcs[key].impression} )</span>`, [{ text: "打聲招呼", action: () => proceedToNpcDialogue(key) }]);
+                return;
+            }
+            proceedToNpcDialogue(key);
+        }
+
+        function proceedToNpcDialogue(key) {
+            if (playerData.questStatus === 'check_safety') {
+                if (key === 'ming' && !playerData.sideQuestMing) {
+                    setDialogue("謝昊霖", "「喔耶！這台車空間超大！風紀你看，我剛才差點能從第三排跳到第五排喔！」", [
+                        { text: "「再不坐好我就記你名字喔！」", action: () => { setDialogue("謝昊霖", "「嘖，真是個無趣的糾察隊員...」"); playerData.sideQuestMing = 'failed'; }},
+                        { text: "「昊霖，現在車子已經發動了，站著很危險。你先坐好，我現在在執行老師給的安全任務。」", action: () => {
+                            playerData.sideQuestMing = 'success';
+                            setDialogue("謝昊霖", "「好吧，既然你這麼認真...我坐好就是了。」", [{ text: "結束對話", action: () => { showAchievementModal('sharp_eye'); setDialogue("高樂安", "<span class='thought'>( 昊霖坐穩了，這樣比較安全。)</span>"); }}]);
+                        }}
+                    ]); return;
+                }
+                if (key === 'mei' && !playerData.sideQuestMei) {
+                    setDialogue("周雨望", "「樂安...你覺得這台車穩嗎？我總覺得有一點點緊張...」", [
+                        { text: "「別想太多啦！」", action: () => { setDialogue("周雨望", "「喔...好吧...」"); playerData.sideQuestMei = 'failed'; }},
+                        { text: "「別怕，我會仔細檢查每一個角落。如果真的有問題，我會第一個反應。」", action: () => {
+                            playerData.sideQuestMei = 'success';
+                            setDialogue("周雨望", "「謝謝你，樂安。聽你這麼說，我真的覺得安心多了。」", [{ text: "結束對話", action: () => { showAchievementModal('gentle_heart'); setDialogue("高樂安", "<span class='thought'>( 雨望看起來平靜了許多。)</span>"); }}]);
+                        }}
+                    ]); return;
+                }
+            }
+            if (key === 'teacher') {
+                if (playerData.questStatus === 'intro') {
+                    setDialogue("林老師", npcs.teacher.intro, [{ text: "「好的，交給我吧！」", action: () => { playerData.questStatus = 'check_safety'; updateQuestBasedOnStatus(); setDialogue("高樂安", "「沒問題！我會仔細確認設施。」"); }}]);
+                } else if (playerData.questStatus === 'check_safety') {
+                    if (playerData.inventory.length === 4) setDialogue("林老師", "「檢查得非常仔細，樂安。我們出發吧。」", [{ text: "出發！", action: startJourney }]);
+                    else setDialogue("林老師", "「記得確認擊破器、滅火器、緊急門和天窗的位置與操作方式。」");
+                }
+            } else setDialogue(npcs[key].name, npcs[key].intro);
+        }
+
+        function interactItem(key) {
+            if (playerData.questStatus !== 'check_safety' || playerData.inventory.includes(key)) return;
+            playerData.currentItemStep = 0; 
+            presentQuestion(key);
+        }
+
+        function presentQuestion(key) {
+            const item = items[key];
+            const currentQ = item.questions[playerData.currentItemStep];
+            setDialogue("檢查進行中：" + item.name, currentQ.q, currentQ.a.map((txt, i) => ({ text: txt, action: () => checkAnswer(key, i) })));
+        }
+
+        function checkAnswer(key, index) {
+            const item = items[key];
+            const currentQ = item.questions[playerData.currentItemStep];
+            if (index === currentQ.correct) {
+                playerData.currentItemStep++;
+                if (playerData.currentItemStep >= item.questions.length) {
+                    playerData.inventory.push(key);
+                    updateQuestBasedOnStatus(); updateUI(); renderBus();
+                    showKnowledgeModal(key, () => {
+                        let msg = playerData.inventory.length < 4 ? `<br><span class='thought'>( ${item.name} 檢查完畢。)</span>` : `<br><span class='thought'>( 全部確認完了，去向老師回報吧。)</span>`;
+                        setDialogue("高樂安", msg, [{ text: "繼續", action: () => { if(playerData.inventory.length === 4) interactNPC('teacher'); } }]);
+                    });
+                } else {
+                    setDialogue("高樂安", "「正確！下一題。」", [{ text: "繼續", action: () => presentQuestion(key) }]);
+                }
+            } else {
+                playerData.hp -= 15; triggerShake(); updateUI();
+                if (playerData.hp <= 0) { triggerPanicEnd(); return; }
+                setDialogue("高樂安", "<span class='urgency'>「不對...我得重新確認。」</span>", [{ text: "重新開始這項檢查", action: () => presentQuestion(key) }]);
+            }
+        }
+
+        function triggerPanicEnd() {
+            setDialogue("系統", "<span class='urgency'>恐懼籠罩了你，你無法在壓力下冷靜思考。</span>", [{ text: "......", action: () => resolveEnding("驚慌崩潰") }]);
+        }
+
+        function startJourney() {
+            playerData.questStatus = 'driving';
+            document.getElementById('bus-visual').classList.add('speed-blur');
+            updateQuestBasedOnStatus();
+            setDialogue("描述", "巴士加速行駛，窗外的風景迅速後退。王叔叔正專注駕駛，一切看起來都很平穩。", [{ text: "保持警覺", action: () => setTimeout(triggerAccident, 1500) }]);
+        }
+
+        function triggerAccident() {
+            playerData.questStatus = 'accident';
+            document.getElementById('bus-visual').classList.remove('speed-blur');
+            triggerShake(); document.body.style.backgroundColor = '#38211d';
+            updateQuestBasedOnStatus();
+            setDialogue("事故爆發", "<span class='urgency text-3xl'>刺耳的煞車聲與巨響！</span><br>車輛失控翻覆了，濃煙與尖叫聲瞬間撕裂平靜！", [{ text: "冷靜下來引導大家", action: escapeEvent_PanicCheck }]);
+        }
+
+        function escapeEvent_PanicCheck() {
+            let mingStatus = playerData.sideQuestMing === 'success' ? "謝昊霖忍住恐懼：『風紀，我聽你的，我幫你維持秩序！』" : "謝昊霖癱在地上大哭：『救命...我不想死！』";
+            setDialogue("現場混亂", mingStatus, [{ text: "查看昏迷的林老師", action: escapeEvent_TeacherRescue }]);
+        }
+
+        function escapeEvent_TeacherRescue() {
+            setDialogue("林老師", "老師受傷昏迷了。煙越來越濃！", [
+                { text: "請王叔叔協助搬運老師", action: () => teacherRescueBranch('driver') },
+                { text: "自己先做緊急包紮", action: () => teacherRescueBranch('self') }
+            ]);
+        }
+
+        function teacherRescueBranch(helper) {
+            playerData.teacherHelpBy = helper;
+            setDialogue("決策中", helper === 'driver' ? "王叔叔來幫忙了，你要去確認火勢與出口。" : "你迅速止血，這讓同學們安定了不少。", [{ text: "判斷火勢", action: escapeEvent_FireJudgment }]);
+        }
+
+        function escapeEvent_FireJudgment() {
+            setDialogue("判斷火勢", "火舌竄出，火勢已經超過一個垃圾桶的高度。你會：", [
+                { text: "嘗試拿滅火器撲滅", action: () => {
+                    playerData.hp -= 20; updateUI();
+                    setDialogue("警告", "火勢過大，乾粉反而阻擋視線！必須立刻撤離！", [{ text: "引導撤離", action: escapeEvent_ExitChoice }]);
+                }},
+                { text: "判斷火勢已過大，立即引導撤離", action: () => {
+                    setDialogue("正確決策", "火勢過大，撤離才是唯一選擇。", [{ text: "尋找出口", action: escapeEvent_ExitChoice }]);
+                }}
+            ]);
+        }
+
+        function escapeEvent_ExitChoice() {
+            setDialogue("出口抉擇", "濃煙密布，你打算使用哪個設施？", [
+                { text: "使用擊破器破窗", action: () => escapeAttempt('hammer') },
+                { text: "使用緊急門開關", action: () => escapeAttempt('door_key') }
+            ]);
+        }
+
+        function escapeAttempt(method) {
+            if (!playerData.inventory.includes(method)) {
+                playerData.hp -= 30; updateUI();
+                setDialogue("失敗", "你記不清具體的操作方式...", [{ text: "再試試", action: escapeEvent_ExitChoice }]);
+                return;
+            }
+            if (method === 'door_key') {
+                setDialogue("操作：緊急門", "旋轉旋鈕並推開門：", [
+                    { text: "依照箭頭方向用力推開", action: () => finalEscapeProcess(true, 'door') },
+                    { text: "等待司機來開門", action: () => finalEscapeProcess(false, 'door', "斷電後只能手動開門") }
+                ]);
+            } else {
+                setDialogue("操作：破窗", "你的擊破點在哪？", [
+                    { text: "瞄準玻璃四個角落猛擊", action: () => finalEscapeProcess(true, 'hammer') },
+                    { text: "對準正中央施力", action: () => finalEscapeProcess(false, 'hammer', "玻璃中心最堅硬") }
+                ]);
+            }
+        }
+
+        function finalEscapeProcess(success, type, failMsg = "") {
+            if (!success) {
+                playerData.hp -= 30; updateUI();
+                setDialogue("失敗", failMsg, [{ text: "重新嘗試", action: escapeEvent_ExitChoice }]);
+                return;
+            }
+            setDialogue("逃出生天", "出口開啟了！你引導所有人平安撤離。", [{ text: "確認傷亡情況", action: () => {
+                if (playerData.hp > 75) resolveEnding("完美生存");
+                else if (playerData.hp > 0) resolveEnding("驚險倖存");
+                else resolveEnding("喪生火海");
+            }}]);
+        }
+
+        function resolveEnding(endName) {
+            const container = document.getElementById('game-container');
+            let content = endName === "完美生存" ? "全員平安。你因為出色的判斷力被表揚。" : "雖然有人受傷，但大家都活下來了。";
+            if(endName === "驚慌崩潰") content = "由於你的猶豫不決，事故造成了嚴重後果。";
+            if(endName === "喪生火海") content = "濃煙最終奪走了你的生命。";
+
+            container.innerHTML = `<div class="text-center p-12 bg-stone-900 rounded-2xl border-4 border-amber-700 shadow-2xl max-w-2xl mx-auto">
+                <h2 class="text-4xl font-bold mb-6 text-amber-200">【${endName}】</h2>
+                <div class="mb-8 p-6 bg-stone-800 rounded-xl border border-stone-700 text-stone-200 text-xl">${content}</div>
+                <button class="bg-amber-700 hover:bg-amber-600 text-white px-10 py-3 rounded-full font-bold" onclick="location.reload()">重新開始</button>
+            </div>`;
+        }
+
+        function updateQuestBasedOnStatus() {
+            let t = "";
+            const subQuest = document.getElementById('subquest-display');
+            subQuest.classList.add('hidden');
+            switch(playerData.questStatus) {
+                case 'intro': t = "任務：向老師報到"; break;
+                case 'check_safety': t = `確認安全設備 (${playerData.inventory.length}/4)`; subQuest.classList.remove('hidden'); break;
+                case 'driving': t = "行駛中（保持警覺）"; break;
+                case 'accident': t = "緊急：迅速逃生"; break;
+            }
+            document.getElementById('quest-display').innerText = t;
+        }
+    </script>
+</body>
+</html>
