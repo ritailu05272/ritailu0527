@@ -399,7 +399,8 @@
             sideQuestMei: false,  
             metNpcs: [],
             teacherHelpBy: null,
-            currentItemStep: 0
+            currentItemStep: 0,
+            activeItemKey: null // 用於追蹤當前正在檢查的物品
         };
 
         const npcs = {
@@ -603,6 +604,25 @@
         function startGame() { updateQuestBasedOnStatus(); renderBus(); updateUI(); setDialogue("高樂安", "巴士引擎的震動從腳底傳來，車門關閉的機械聲代表旅程正式啟程。窗外的陽光灑進車內，同學們正興奮地交談著。<br><span class='thought'>( 林老師坐在前排，我應該先去向她報到，詢問今天的安全檢查職責。身為風紀股長，責任重大。)</span>"); }
 
         function interactNPC(key) {
+            // 逃生時無法互動
+            if (playerData.questStatus === 'accident') return;
+
+            // 遊覽車行進時點擊人物
+            if (playerData.questStatus === 'driving') {
+                setDialogue("高樂安", "<span class='thought'>( 大家現在看起來都在休息或是看風景，我還是先不打擾他了。)</span>", [
+                    { text: "閉目養神", action: () => setTimeout(triggerAccident, 500) }
+                ]);
+                return;
+            }
+
+            // 知識問答期間（已有activeItemKey）點擊人物
+            if (playerData.activeItemKey) {
+                setDialogue("高樂安", "<span class='thought'>( 我現在應該專注檢查才對，不能分心。)</span>", [
+                    { text: "繼續", action: () => presentQuestion(playerData.activeItemKey) }
+                ]);
+                return;
+            }
+
             if (!playerData.metNpcs.includes(key)) {
                 playerData.metNpcs.push(key);
                 setDialogue("高樂安", `<span class='thought'>( ${npcs[key].impression} )</span>`, [{ text: "打聲招呼", action: () => proceedToNpcDialogue(key) }]);
@@ -615,21 +635,25 @@
             if (playerData.questStatus === 'check_safety') {
                 if (key === 'ming' && !playerData.sideQuestMing) {
                     setDialogue("謝昊霖", "「喔耶！這台車空間超大！風紀你看，我剛才差點能從第三排跳到第五排喔！」他說完還作勢要跳，腳步讓地板發出沉重的悶響。", [
-                        { text: "「再不坐好我就記你名字喔！」", action: () => { setDialogue("謝昊霖", "「嘖，真是個無趣的糾察隊員...」他翻了個白眼，雖然坐下但仍不安分。"); playerData.sideQuestMing = 'failed'; }},
+                        { text: "「再不坐好我就記你名字喔！」", action: () => { setDialogue("謝昊霖", "「嘖，真是個無趣的糾察隊員...」他翻了個白眼，雖然坐下但仍不安分。", [{ text: "（這傢伙真是本性難移...先去檢查設備吧。）", action: () => setDialogue("高樂安", "<span class='thought'>( 昊霖雖然坐下了，但似乎沒聽進去。我得抓緊時間檢查設備。)</span>") }]); playerData.sideQuestMing = 'failed'; }},
                         { text: "「昊霖，現在車子已經發動了，站著很危險。你先坐好，我現在在執行老師給的安全任務。」", action: () => {
                             playerData.sideQuestMing = 'success';
-                            setDialogue("謝昊霖", "「好吧，既然你這麼認真...我坐好就是了。」他難得聽話地坐穩，甚至拍了拍旁邊的空位示意自己會乖乖的。", [{ text: "結束對話", action: () => { showAchievementModal('sharp_eye'); setDialogue("高樂安", "<span class='thought'>( 昊霖坐穩了，這樣比較安全。希望他能維持下去。)</span>"); }}]);
+                            setDialogue("謝昊霖", "「好吧，既然你這麼認真...我坐好就是了。」他難得聽話地坐穩，甚至拍了拍旁邊的空位示意自己會乖乖的。", [{ text: "（呼...總算溝通成功了。繼續檢查吧。）", action: () => { showAchievementModal('sharp_eye'); setDialogue("高樂安", "<span class='thought'>( 昊霖坐穩了，這樣比較安全。希望他能維持下去。)</span>"); }}]);
                         }}
                     ]); return;
                 }
                 if (key === 'mei' && !playerData.sideQuestMei) {
                     setDialogue("周雨望", "「樂安...你覺得這台車穩嗎？我總覺得心跳好快...」她雙手交疊握在胸前，關節因為用力而顯得有些蒼白。", [
-                        { text: "「別想太多啦！」", action: () => { setDialogue("周雨望", "「喔...好吧...」她低下頭，把臉埋進圍巾裡，顯得更焦慮了。"); playerData.sideQuestMei = 'failed'; }},
+                        { text: "「別想太多啦！」", action: () => { setDialogue("周雨望", "「喔...好吧...」她低下頭，把臉埋進圍巾裡，顯得更焦慮了。", [{ text: "（我也沒辦法，每個人都得面對這種不確定感。繼續做事吧。）", action: () => setDialogue("高樂安", "<span class='thought'>( 雨望看起來還是很不安，但我現在最重要的任務是確保設備沒問題。)</span>") }]); playerData.sideQuestMei = 'failed'; }},
                         { text: "「別怕，我會仔細檢查每一個角落。如果真的有問題，我會第一個反應並保護大家的。」", action: () => {
                             playerData.sideQuestMei = 'success';
-                            setDialogue("周雨望", "「謝謝你，樂安。聽你這麼說，我真的覺得安心多了。」她露出了一個淺淺的微笑，緊繃的肩膀也放鬆了下來。", [{ text: "結束對話", action: () => { showAchievementModal('gentle_heart'); setDialogue("高樂安", "<span class='thought'>( 雨望看起來平靜了許多，這是我應該做的。)</span>"); }}]);
+                            setDialogue("周雨望", "「謝謝你，樂安。聽你這麼說，我真的覺得安心多了。」她露出了一個淺淺的微笑，緊繃的肩膀也放鬆了下來。", [{ text: "（能讓她放鬆一點真是太好了。要把安檢做得更精確才行。）", action: () => { showAchievementModal('gentle_heart'); setDialogue("高樂安", "<span class='thought'>( 雨望看起來平靜了許多，這是我應該做的。)</span>"); }}]);
                         }}
                     ]); return;
+                }
+                if (key === 'driver') {
+                    setDialogue("王叔叔", npcs.driver.intro, [{ text: "（聽起來是個經驗豐富的老手，我得記好他提到的位置。）", action: () => setDialogue("高樂安", "<span class='thought'>( 司機大哥的話非常有威嚴。滅火器在他腳邊，安全門在後方...我記住了。)</span>") }]);
+                    return;
                 }
             }
             if (key === 'teacher') {
@@ -637,14 +661,17 @@
                     setDialogue("林老師", npcs.teacher.intro, [{ text: "「沒問題！我會仔細確認設施。」(或許我可以順便關心一下同學們?)", action: () => { playerData.questStatus = 'check_safety'; updateQuestBasedOnStatus(); setDialogue("高樂安", "「沒問題！我會仔細確認設施。」<br><span class='thought'>( 或許我可以順便關心一下同學們? 雨望和昊霖看起來都有點異樣... )</span>"); }}]);
                 } else if (playerData.questStatus === 'check_safety') {
                     if (playerData.inventory.length === 4) setDialogue("林老師", "「檢查得非常仔細，樂安。你的認真讓大家多了一份保障。我們出發吧。」", [{ text: "回座位出發！", action: startJourney }]);
-                    else setDialogue("林老師", "「樂安，安全不能馬虎。記得確認擊破器、滅火器、緊急門和天窗的位置與操作方式。辛苦你了。」");
+                    else setDialogue("林老師", "「樂安，安全不能馬虎。記得確認擊破器、滅火器、緊急門和天窗的位置與操作方式。辛苦你了。」", [{ text: "（老師對我的期望很高，不能讓她失望。繼續檢查吧。）", action: () => setDialogue("高樂安", "<span class='thought'>( 老師還在忙著點名，我必須儘快完成剩下的檢查。)</span>") }]);
                 }
-            } else setDialogue(npcs[key].name, "「(正在忙碌中...)」");
+            } else setDialogue(npcs[key].name, "「(正在忙碌中...)」", [{ text: "（大家都各自在忙，我也不該閒著。）", action: () => setDialogue("高樂安", "<span class='thought'>( 保持專注，還有沒檢查到的地方。)</span>") }]);
         }
 
         function interactItem(key) {
+            // 逃生時無法互動
+            if (playerData.questStatus === 'accident') return;
             if (playerData.questStatus !== 'check_safety' || playerData.inventory.includes(key)) return;
             playerData.currentItemStep = 0; 
+            playerData.activeItemKey = key; // 設定當前正在檢查的物品
             presentQuestion(key);
         }
 
@@ -656,11 +683,12 @@
 
         function checkAnswer(key, index) {
             const item = items[key];
-            const currentQ = item.questions[playerData.currentItemStep];
+            const currentQ = item.questions[playerData.currentColorIndex] || item.questions[playerData.currentItemStep];
             if (index === currentQ.correct) {
                 playerData.currentItemStep++;
                 if (playerData.currentItemStep >= item.questions.length) {
                     playerData.inventory.push(key);
+                    playerData.activeItemKey = null; // 檢查完成，清空狀態
                     updateQuestBasedOnStatus(); updateUI(); renderBus();
                     showKnowledgeModal(key, () => {
                         let msg = playerData.inventory.length < 4 ? `<br><span class='thought'>( ${item.name} 檢查完畢。我知道怎麼使用它了。)</span>` : `<br><span class='thought'>( 全部安全設施都確認完畢了，去向老師回報吧。)</span>`;
@@ -831,7 +859,7 @@
         }
 
         function triggerDeathSequence() {
-            setDialogue("最後時刻", "「沒想到意外發生了...」<br>我驚慌失措地想要逃生，雙手卻顫抖得連開關都摸不著，大腦像當機一般，怎麼也想不出該怎麼辦。胸口被濃煙灼燒得發燙，我想喊出雨望與昊霖的名字，喉嚨卻發不出聲音，只有絕望的氣泡聲。<br><br>意識慢慢變得模糊，視線中的火光從赤紅轉為虛無的漆黑，黑暗吞噬了一切感官....", [{ text: "意識斷線...", action: () => resolveEnding("喪生火海") }]);
+            setDialogue("最後時刻", "「沒發生了...」<br>我驚慌失措地想要逃生，雙手卻顫抖得連開關都摸不著，大腦像當機一般，怎麼也想不出該怎麼辦。胸口被濃煙灼燒得發燙，我想喊出雨望與昊霖的名字，喉嚨卻發不出聲音，只有絕望的氣泡聲。<br><br>意識慢慢變得模糊，視線中的火光從赤紅轉為虛無的漆黑，黑暗吞噬了一切感官....", [{ text: "意識斷線...", action: () => resolveEnding("喪生火海") }]);
         }
 
         function resolveEnding(endName) {
@@ -840,7 +868,7 @@
             let endTitle = endName;
             
             if (endName === "完美生存") {
-                content = "全員平安生還。你因為在極限時刻展現的冷靜與英勇，獲得了英雄般的表揚。雨望與昊霖緊緊握著你的手，那份活下來的真實感是最好的獎勵閉。";
+                content = "全員平安生還。你因為在極限時刻展現的冷靜與英勇，獲得了英雄般的表揚。雨望與昊霖緊緊握著你的手，那份活下來的真實感是最好的獎勵. ";
             } else if (endName === "驚險倖存") {
                 content = "雖然有人受輕傷，但大家都活下來了。這場噩夢般的經歷將深刻地刻印在你的人生中，提醒你安全與冷靜的重要性。";
             } else if (endName === "喪生火海") {
